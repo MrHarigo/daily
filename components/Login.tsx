@@ -187,12 +187,19 @@ export function Login() {
       await directPasskeyLogin();
       // If successful, the auth store will update and this component will unmount
     } catch (err) {
-      // User cancelled or no passkey - silently fail and let them use email
-      if ((err as { name?: string })?.name === 'NotAllowedError') {
+      const error = err as { name?: string; message?: string };
+      
+      if (error?.name === 'NotAllowedError') {
         // User cancelled - don't show error, just stay on initial screen
+      } else if (error?.message?.includes('Credential not found') || error?.message?.includes('not found')) {
+        // Outdated or invalid credential
+        setError('This passkey is no longer valid. Please sign in with email to re-register.');
+      } else if (error?.message?.includes('No challenge')) {
+        // Session issue
+        setError('Session expired. Please try again.');
       } else {
-        // Other error - might be no passkey available, that's okay
-        console.log('No passkey available, use email instead');
+        // Other error - show generic message
+        setError('Unable to sign in with passkey. Try using email instead.');
       }
     } finally {
       setIsLoading(false);
