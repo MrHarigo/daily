@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { query, queryOne } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
+
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if ('error' in auth) return auth.error;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const includeAll = searchParams.get('includeAll') === 'true';
+    
+    const habits = await query(
+      `SELECT id, name, type, target_value, sort_order, 
+              to_char(created_at, 'YYYY-MM-DD') as created_at,
+              to_char(paused_at, 'YYYY-MM-DD"T"HH24:MI:SS') as paused_at,
+              to_char(archived_at, 'YYYY-MM-DD"T"HH24:MI:SS') as archived_at
+       FROM habits 
+       ${includeAll ? '' : 'WHERE archived_at IS NULL'}
+       ORDER BY sort_order, created_at`
+    );
+    return NextResponse.json(habits);
+  } catch (error) {
+    console.error('Get habits error:', error);
+    return NextResponse.json({ error: 'Failed to get habits' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if ('error' in auth) return auth.error;
+
+  try {
+    const { name, type = 'boolean', target_value } = await request.json();
+    if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
+    
+    const maxOrder = await queryOne<{ max: number }>(
+      'SELECT COALESCE(MAX(sort_order), 0) as max FROM habits WHERE archived_at IS NULL'
+    );
+    
+    const habit = await queryOne(
+      `INSERT INTO habits (name, type, target_value, sort_order)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, type, target_value, sort_order, to_char(created_at, 'YYYY-MM-DD') as created_at`,
+      [name, type, target_value, (maxOrder?.max || 0) + 1]
+    );
+    return NextResponse.json(habit);
+  } catch (error) {
+    console.error('Create habit error:', error);
+    return NextResponse.json({ error: 'Failed to create habit' }, { status: 500 });
+  }
+}
+

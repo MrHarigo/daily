@@ -4,6 +4,11 @@ node_modules/
 # Build outputs
 dist/
 build/
+.next/
+out/
+
+# Vercel
+.vercel/
 
 # Environment variables
 .env
