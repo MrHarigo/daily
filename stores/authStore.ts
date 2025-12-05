@@ -76,7 +76,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Authentication failed');
       }
     } catch (error) {
-      console.error('Direct passkey login error:', error);
+      // Don't log user cancellation - it's expected behavior
+      const err = error as { name?: string };
+      if (err?.name !== 'NotAllowedError') {
+        console.error('Direct passkey login error:', error);
+      }
       throw error;
     }
   },
