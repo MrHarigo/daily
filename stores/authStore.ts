@@ -49,8 +49,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   register: async (username: string) => {
     try {
-      // Get registration options from server
-      const options = await api.get<PublicKeyCredentialCreationOptionsJSON>('/auth/register/options');
+      // Get registration options from server (send username)
+      const options = await api.post<PublicKeyCredentialCreationOptionsJSON>('/auth/register/options', { username });
 
       // Start WebAuthn registration
       const credential = await startRegistration({ optionsJSON: options });
