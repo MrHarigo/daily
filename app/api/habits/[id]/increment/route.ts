@@ -6,10 +6,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const auth = await requireAuth();
   if ('error' in auth) return auth.error;
   const { id } = await params;
+  
   try {
+    // Verify ownership and get target_value
+    const habit = await queryOne<{ target_value: number }>(
+      'SELECT target_value FROM habits WHERE id = $1 AND user_id = $2',
+      [id, auth.userId]
+    );
+    if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     const { date, delta = 1 } = await request.json();
     if (!date) return NextResponse.json({ error: 'Date required' }, { status: 400 });
-    const habit = await queryOne<{ target_value: number }>('SELECT target_value FROM habits WHERE id = $1', [id]);
+    
     const completion = await queryOne(
       `INSERT INTO habit_completions (habit_id, date, value, completed) VALUES ($1, $2, GREATEST(0, $3), $3 >= $4)
        ON CONFLICT (habit_id, date) DO UPDATE SET value = GREATEST(0, habit_completions.value + $3),
@@ -23,4 +31,3 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
-

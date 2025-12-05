@@ -9,8 +9,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { id } = await params;
     const result = await queryOne(
-      'UPDATE habits SET archived_at = NULL WHERE id = $1 RETURNING id',
-      [id]
+      'UPDATE habits SET archived_at = NULL WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, auth.userId]
     );
     if (!result) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json({ success: true });
@@ -19,4 +19,3 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Failed to unarchive' }, { status: 500 });
   }
 }
-

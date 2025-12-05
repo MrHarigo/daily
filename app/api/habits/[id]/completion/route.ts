@@ -6,9 +6,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const auth = await requireAuth();
   if ('error' in auth) return auth.error;
   const { id } = await params;
+  
   try {
+    // Verify ownership
+    const habit = await queryOne<{ id: string }>(
+      'SELECT id FROM habits WHERE id = $1 AND user_id = $2',
+      [id, auth.userId]
+    );
+    if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     const { date, value, completed } = await request.json();
     if (!date) return NextResponse.json({ error: 'Date required' }, { status: 400 });
+    
     const completion = await queryOne(
       `INSERT INTO habit_completions (habit_id, date, value, completed) VALUES ($1, $2, $3, $4)
        ON CONFLICT (habit_id, date) DO UPDATE SET value = $3, completed = $4
@@ -21,4 +30,3 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
-

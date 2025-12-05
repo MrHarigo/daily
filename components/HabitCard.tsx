@@ -102,13 +102,6 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
     setIsEditingTime(false);
   };
 
-  // Format time display
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div
       className={`card transition-all ${
@@ -122,22 +115,28 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
       <div className="flex items-center gap-4">
         {/* Checkbox / Status */}
         {habit.type === 'boolean' && (
-          <button
-            ref={checkboxRef as React.RefObject<HTMLButtonElement>}
-            onClick={handleToggle}
-            disabled={disabled}
-            className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all ${
-              isCompleted
-                ? 'bg-accent border-accent text-surface-900'
-                : 'border-surface-500 hover:border-accent'
-            } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+          <div 
+            className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all ${
+              isCompleted ? 'bg-accent/10' : 'bg-surface-700/50'
+            }`}
           >
-            {isCompleted && (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </button>
+            <button
+              ref={checkboxRef as React.RefObject<HTMLButtonElement>}
+              onClick={handleToggle}
+              disabled={disabled}
+              className={`w-7 h-7 rounded-md border-2 flex items-center justify-center transition-all ${
+                isCompleted
+                  ? 'bg-accent border-accent text-surface-900'
+                  : 'border-surface-500 hover:border-accent'
+              } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              {isCompleted && (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          </div>
         )}
 
         {/* Count display */}
@@ -159,14 +158,15 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
           <button
             onClick={disabled ? undefined : handleEditTime}
             disabled={disabled}
-            className={`w-16 h-12 rounded-lg flex items-center justify-center font-mono text-sm font-medium transition-all ${
+            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center font-mono transition-all ${
               isCompleted
                 ? 'bg-accent text-surface-900'
                 : 'bg-surface-700 text-gray-300'
             } ${!disabled ? 'hover:ring-2 hover:ring-accent/50 cursor-pointer' : ''}`}
             title="Click to edit time"
           >
-            {formatTime(currentValue)}
+            <span className="text-sm font-bold leading-none">{Math.floor(currentValue / 60)}</span>
+            <span className="text-[10px] opacity-70 leading-none">min</span>
           </button>
         )}
 

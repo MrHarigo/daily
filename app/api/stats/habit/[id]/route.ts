@@ -15,21 +15,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
 
   try {
+    // Verify ownership
     const habit = await queryOne<{ id: string; type: string; created_at: Date }>(
-      'SELECT id, type, created_at FROM habits WHERE id = $1', [id]
+      'SELECT id, type, created_at FROM habits WHERE id = $1 AND user_id = $2',
+      [id, auth.userId]
     );
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const completions = await query<{ date: string; value: number; completed: boolean }>(
-      `SELECT to_char(date, 'YYYY-MM-DD') as date, value, completed FROM habit_completions WHERE habit_id = $1`, [id]
+      `SELECT to_char(date, 'YYYY-MM-DD') as date, value, completed FROM habit_completions WHERE habit_id = $1`,
+      [id]
     );
     const holidaysData = await query<{ date: string }>(`SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`);
-    const dayOffsData = await query<{ date: string }>(`SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs`);
+    const dayOffsData = await query<{ date: string }>(
+      `SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs WHERE user_id = $1`,
+      [auth.userId]
+    );
 
     const holidays = new Set(holidaysData.map(h => h.date));
     const dayOffs = new Set(dayOffsData.map(d => d.date));
 
-    const createdAt = habit.created_at instanceof Date 
+    const createdAt = habit.created_at instanceof Date
       ? habit.created_at.toISOString().split('T')[0]
       : String(habit.created_at).split('T')[0];
 
@@ -48,14 +54,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     let streak = 0;
     const completionMap = new Map(completions.map(c => [c.date, c.completed]));
     const todayStr = today.toISOString().split('T')[0];
-    
+
     // Start from today, but if today is not completed, skip it to show "active" streak
     let startIdx = workingDays.length - 1;
     const lastWorkingDay = workingDays[startIdx];
     if (lastWorkingDay === todayStr && !completionMap.get(todayStr)) {
       startIdx--;
     }
-    
+
     for (let i = startIdx; i >= 0; i--) {
       const day = workingDays[i];
       if (day < createdAt) break;
@@ -88,4 +94,3 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
-

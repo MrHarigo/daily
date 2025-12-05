@@ -3,6 +3,8 @@ import { SessionOptions } from 'iron-session';
 export interface SessionData {
   userId?: string;
   challenge?: string;
+  // For email verification flow
+  verifiedEmail?: string;
 }
 
 export const sessionOptions: SessionOptions = {

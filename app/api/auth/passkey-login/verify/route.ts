@@ -15,32 +15,36 @@ function parseTransports(transports: unknown): AuthenticatorTransportFuture[] {
   if (typeof transports === 'string') {
     try {
       const parsed = JSON.parse(transports);
-      return Array.isArray(parsed) ? parsed : [];
+      if (Array.isArray(parsed)) return parsed as AuthenticatorTransportFuture[];
     } catch {
-      return transports.split(',').map(t => t.trim()) as AuthenticatorTransportFuture[];
+      return transports.split(',').filter(Boolean) as AuthenticatorTransportFuture[];
     }
   }
   return [];
 }
 
+// Direct passkey login verification - looks up user from credential
 export async function POST(request: NextRequest) {
   try {
     const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
     const body = await request.json();
 
     const expectedChallenge = session.challenge;
-
     if (!expectedChallenge) {
       return NextResponse.json({ error: 'No challenge found' }, { status: 400 });
     }
 
+    // Look up credential by ID to find the user
     const credential = await queryOne<{
       id: string;
       user_id: string;
       public_key: string;
       counter: number;
       transports: string;
-    }>('SELECT * FROM credentials WHERE id = $1', [body.id]);
+    }>(
+      'SELECT id, user_id, public_key, counter, transports FROM credentials WHERE id = $1',
+      [body.id]
+    );
 
     if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 400 });
@@ -53,8 +57,8 @@ export async function POST(request: NextRequest) {
       expectedRPID: rpID,
       credential: {
         id: credential.id,
-        publicKey: new Uint8Array(Buffer.from(credential.public_key, 'base64')),
-        counter: credential.counter ?? 0,
+        publicKey: Buffer.from(credential.public_key, 'base64'),
+        counter: credential.counter,
         transports: parseTransports(credential.transports),
       },
     });
@@ -66,10 +70,9 @@ export async function POST(request: NextRequest) {
         [verification.authenticationInfo.newCounter, body.id]
       );
 
-      // Clear verification state, keep user logged in
+      // Log the user in
       session.userId = credential.user_id;
       session.challenge = undefined;
-      session.verifiedEmail = undefined;
       await session.save();
 
       return NextResponse.json({ verified: true });
@@ -77,7 +80,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Verification failed' }, { status: 400 });
   } catch (error) {
-    console.error('Login verify error:', error);
+    console.error('Passkey login verify error:', error);
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 });
   }
 }
+

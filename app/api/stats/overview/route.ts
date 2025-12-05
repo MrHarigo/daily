@@ -12,17 +12,17 @@ function isWorkingDay(date: Date, holidays: Set<string>, dayOffs: Set<string>): 
 function calculateStreak(completions: { date: string; completed: boolean }[], workingDays: string[], habitCreatedAt: string, todayStr: string): number {
   let streak = 0;
   const completionMap = new Map(completions.map(c => [c.date, c.completed]));
-  
+
   // Start from today and work backwards
   let startIdx = workingDays.length - 1;
-  
+
   // If today is a working day but not completed, skip it and start from yesterday
   // This way we show the "active" streak that can still be extended
   const lastWorkingDay = workingDays[startIdx];
   if (lastWorkingDay === todayStr && !completionMap.get(todayStr)) {
     startIdx--;
   }
-  
+
   for (let i = startIdx; i >= 0; i--) {
     const day = workingDays[i];
     if (day < habitCreatedAt) break;
@@ -37,12 +37,25 @@ export async function GET() {
   if ('error' in auth) return auth.error;
 
   try {
-    const habits = await query<{ id: string; created_at: Date }>('SELECT id, created_at FROM habits WHERE archived_at IS NULL AND paused_at IS NULL');
-    const completions = await query<{ habit_id: string; date: string; completed: boolean }>(
-      `SELECT habit_id, to_char(date, 'YYYY-MM-DD') as date, completed FROM habit_completions`
+    // Filter by user_id
+    const habits = await query<{ id: string; created_at: Date }>(
+      'SELECT id, created_at FROM habits WHERE user_id = $1 AND archived_at IS NULL AND paused_at IS NULL',
+      [auth.userId]
     );
+    
+    const completions = await query<{ habit_id: string; date: string; completed: boolean }>(
+      `SELECT hc.habit_id, to_char(hc.date, 'YYYY-MM-DD') as date, hc.completed 
+       FROM habit_completions hc
+       INNER JOIN habits h ON hc.habit_id = h.id
+       WHERE h.user_id = $1`,
+      [auth.userId]
+    );
+    
     const holidaysData = await query<{ date: string }>(`SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`);
-    const dayOffsData = await query<{ date: string }>(`SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs`);
+    const dayOffsData = await query<{ date: string }>(
+      `SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs WHERE user_id = $1`,
+      [auth.userId]
+    );
 
     const holidays = new Set(holidaysData.map(h => h.date));
     const dayOffs = new Set(dayOffsData.map(d => d.date));
@@ -62,10 +75,10 @@ export async function GET() {
     const todayStr = today.toISOString().split('T')[0];
     let bestStreak = 0;
     let bestStreakCompletedToday = false;
-    
+
     for (const habit of habits) {
       const habitCompletions = completions.filter(c => c.habit_id === habit.id);
-      const createdAt = habit.created_at instanceof Date 
+      const createdAt = habit.created_at instanceof Date
         ? habit.created_at.toISOString().split('T')[0]
         : String(habit.created_at).split('T')[0];
       const streak = calculateStreak(habitCompletions, workingDays, createdAt, todayStr);
@@ -90,4 +103,3 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
-

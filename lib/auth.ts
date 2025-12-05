@@ -12,6 +12,6 @@ export async function requireAuth() {
   if (!session.userId) {
     return { error: NextResponse.json({ error: 'Not authenticated' }, { status: 401 }) };
   }
-  return { session };
+  return { session, userId: session.userId };
 }
 

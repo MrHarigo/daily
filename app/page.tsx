@@ -17,6 +17,13 @@ export default function Home() {
     checkAuth();
   }, [checkAuth]);
 
+  // Reset to Today tab when user logs in
+  useEffect(() => {
+    if (isAuthenticated) {
+      setActiveTab('today');
+    }
+  }, [isAuthenticated]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

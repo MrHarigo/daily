@@ -9,15 +9,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params;
     const { name, type, target_value, sort_order } = await request.json();
-    
+
     const habit = await queryOne(
       `UPDATE habits SET name = COALESCE($1, name), type = COALESCE($2, type),
        target_value = COALESCE($3, target_value), sort_order = COALESCE($4, sort_order)
-       WHERE id = $5 AND archived_at IS NULL
+       WHERE id = $5 AND user_id = $6 AND archived_at IS NULL
        RETURNING id, name, type, target_value, sort_order, to_char(created_at, 'YYYY-MM-DD') as created_at`,
-      [name, type, target_value, sort_order, id]
+      [name, type, target_value, sort_order, id, auth.userId]
     );
-    
+
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(habit);
   } catch (error) {
@@ -31,13 +31,21 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   try {
     const { id } = await params;
+    
+    // First verify ownership
+    const habit = await queryOne<{ id: string }>(
+      'SELECT id FROM habits WHERE id = $1 AND user_id = $2',
+      [id, auth.userId]
+    );
+    
+    if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     await query('DELETE FROM habit_completions WHERE habit_id = $1', [id]);
     await query('DELETE FROM active_timers WHERE habit_id = $1', [id]);
-    const result = await queryOne('DELETE FROM habits WHERE id = $1 RETURNING id', [id]);
-    if (!result) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    await query('DELETE FROM habits WHERE id = $1', [id]);
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }
-

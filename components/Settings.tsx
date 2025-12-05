@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useHabitStore, Habit } from '@/stores/habitStore';
 import { useCalendarStore } from '@/stores/calendarStore';
+import { useAuthStore } from '@/stores/authStore';
 import { AddHabitModal } from '@/components/AddHabitModal';
 import { api } from '@/lib/api';
+import { startRegistration } from '@simplewebauthn/browser';
+import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
 
 interface SettingsProps {
   onLogout: () => void;
@@ -14,15 +17,27 @@ interface HabitWithArchived extends Habit {
   archived_at?: string | null;
 }
 
+interface Device {
+  id: string;
+  device_name: string;
+  created_at: string;
+}
+
 export function Settings({ onLogout }: SettingsProps) {
   const { updateHabit, archiveHabit, deleteHabit, pauseHabit, unpauseHabit } = useHabitStore();
   const { dayOffs, fetchDayOffs, addDayOff, removeDayOff, fetchHolidays } = useCalendarStore();
+  const { user } = useAuthStore();
 
   const [allHabits, setAllHabits] = useState<HabitWithArchived[]>([]);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [newDayOff, setNewDayOff] = useState('');
   const [dayOffReason, setDayOffReason] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  
+  // Device management state
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [isAddingDevice, setIsAddingDevice] = useState(false);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
 
   const fetchAllHabits = async () => {
     try {
@@ -33,9 +48,19 @@ export function Settings({ onLogout }: SettingsProps) {
     }
   };
 
+  const fetchDevices = async () => {
+    try {
+      const data = await api.get<Device[]>('/auth/devices');
+      setDevices(data);
+    } catch (error) {
+      console.error('Failed to fetch devices:', error);
+    }
+  };
+
   useEffect(() => {
     fetchAllHabits();
     fetchDayOffs();
+    fetchDevices();
   }, [fetchDayOffs]);
 
   // Split habits into sections
@@ -88,13 +113,61 @@ export function Settings({ onLogout }: SettingsProps) {
     await fetchHolidays(year);
   };
 
+  const handleAddDevice = async () => {
+    setIsAddingDevice(true);
+    setDeviceError(null);
+    
+    try {
+      // Get registration options
+      const options = await api.get<PublicKeyCredentialCreationOptionsJSON>('/auth/add-device');
+      
+      // Start WebAuthn registration
+      const credential = await startRegistration({ optionsJSON: options });
+      
+      // Verify with server
+      const result = await api.post<{ verified: boolean; deviceName: string }>('/auth/add-device', credential);
+      
+      if (result.verified) {
+        fetchDevices();
+      }
+    } catch (err) {
+      if ((err as { name?: string })?.name !== 'NotAllowedError') {
+        setDeviceError(err instanceof Error ? err.message : 'Failed to add device');
+      }
+    } finally {
+      setIsAddingDevice(false);
+    }
+  };
+
+  const handleRemoveDevice = async (deviceId: string, deviceName: string) => {
+    if (!confirm(`Remove "${deviceName}"? You won't be able to sign in from this device anymore.`)) {
+      return;
+    }
+    
+    try {
+      await api.delete(`/auth/devices?id=${encodeURIComponent(deviceId)}`);
+      fetchDevices();
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : 'Failed to remove device');
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-gray-500 mt-1">Manage your habits and calendar</p>
+        <p className="text-gray-500 mt-1">Manage your habits and account</p>
       </div>
 
+      {/* Habits Section */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Manage Habits</h2>
@@ -194,6 +267,7 @@ export function Settings({ onLogout }: SettingsProps) {
         )}
       </section>
 
+      {/* Day-offs Section */}
       <section>
         <h2 className="text-xl font-semibold mb-4">Day-offs</h2>
         <p className="text-sm text-gray-500 mb-4">Mark additional non-working days beyond weekends and Japanese holidays.</p>
@@ -227,6 +301,7 @@ export function Settings({ onLogout }: SettingsProps) {
         )}
       </section>
 
+      {/* Holidays Section */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -242,12 +317,88 @@ export function Settings({ onLogout }: SettingsProps) {
         </div>
       </section>
 
+      {/* Devices Section */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Account</h2>
-        <button onClick={onLogout} className="btn btn-danger">Log Out</button>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold">Devices</h2>
+            <p className="text-sm text-gray-500">Manage devices that can access your account</p>
+          </div>
+          <button 
+            onClick={handleAddDevice} 
+            disabled={isAddingDevice}
+            className="btn btn-primary text-sm"
+          >
+            {isAddingDevice ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-surface-900 border-t-transparent rounded-full animate-spin" />
+                Adding...
+              </span>
+            ) : '+ Add Device'}
+          </button>
+        </div>
+
+        {deviceError && (
+          <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 mb-4">
+            <p className="text-danger text-sm">{deviceError}</p>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {devices.map((device) => (
+            <div key={device.id} className="card flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-surface-700 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {device.device_name === 'Mac' || device.device_name === 'Windows' || device.device_name === 'Linux' ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    )}
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium">{device.device_name || 'Unknown Device'}</p>
+                  <p className="text-sm text-gray-500">Added {formatDate(device.created_at)}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleRemoveDevice(device.id, device.device_name || 'this device')}
+                className="btn btn-ghost text-sm text-danger"
+                disabled={devices.length <= 1}
+                title={devices.length <= 1 ? 'Cannot remove your only device' : 'Remove device'}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+
+          {devices.length === 0 && (
+            <div className="card text-center py-6">
+              <p className="text-gray-400 text-sm">No devices registered</p>
+            </div>
+          )}
+        </div>
       </section>
 
-      <AddHabitModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
+      {/* Account Section */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Account</h2>
+        <div className="card">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent text-xl font-bold">
+              {user?.username?.charAt(0).toUpperCase() || '?'}
+            </div>
+            <div>
+              <p className="font-medium">{user?.username || 'User'}</p>
+              <p className="text-sm text-gray-500">{user?.email}</p>
+            </div>
+          </div>
+          <button onClick={onLogout} className="btn btn-danger">Log Out</button>
+        </div>
+      </section>
+
+      <AddHabitModal isOpen={showAddModal} onClose={() => { setShowAddModal(false); fetchAllHabits(); }} />
     </div>
   );
 }
@@ -337,4 +488,3 @@ function EditHabitForm({ habit, onSave, onCancel }: { habit: Habit; onSave: (upd
     </form>
   );
 }
-

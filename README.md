@@ -24,13 +24,18 @@ A minimal, dark-themed habit tracker for working days, following the Japanese ca
   - Archive completed goals
   - Restore archived habits
 
-- **Secure Authentication** - WebAuthn/Passkeys (Touch ID on Mac)
+- **Multi-Tenant & Multi-Device** - Full account management
+  - Email-based authentication with 6-digit codes
+  - WebAuthn/Passkeys (Touch ID on Mac) for fast login
+  - Multiple devices per account
+  - Device management in settings
 
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
 - **Database**: PostgreSQL (Neon)
-- **Auth**: WebAuthn with SimpleWebAuthn
+- **Auth**: Email codes + WebAuthn with SimpleWebAuthn
+- **Email**: Resend
 - **Styling**: Tailwind CSS v4
 - **State**: Zustand
 
@@ -43,15 +48,23 @@ npm install
 
 2. Create `.env.local`:
 ```env
+# Database (Neon PostgreSQL)
 DATABASE_URL=your_neon_database_url
+
+# Session secret (min 32 characters)
 SESSION_SECRET=your_32_char_secret
+
+# Resend API Key (for email verification)
+RESEND_API_KEY=re_your_api_key
+
+# WebAuthn settings
 WEBAUTHN_RP_ID=localhost
 WEBAUTHN_ORIGIN=http://localhost:3000
 ```
 
-3. Run migrations (if needed):
+3. Run migrations:
 ```bash
-# Connect to your Neon database and run the schema
+npm run db:migrate
 ```
 
 4. Start dev server:
@@ -66,10 +79,20 @@ Deploy to Vercel:
 1. Push to GitHub
 2. Import repo in Vercel
 3. Add environment variables:
-   - `DATABASE_URL`
-   - `SESSION_SECRET`
-   - `WEBAUTHN_RP_ID` (your domain without https://)
-   - `WEBAUTHN_ORIGIN` (full URL with https://)
+   - `DATABASE_URL` - Your Neon connection string
+   - `SESSION_SECRET` - 32+ character random string
+   - `RESEND_API_KEY` - Your Resend API key
+   - `WEBAUTHN_RP_ID` - Your domain (e.g., `your-app.vercel.app`)
+   - `WEBAUTHN_ORIGIN` - Full URL (e.g., `https://your-app.vercel.app`)
 4. Deploy!
 
-**Note**: WebAuthn passkeys are domain-specific. You'll need to register a new passkey on the production site.
+### Getting a Resend API Key
+
+1. Go to [resend.com](https://resend.com) and sign up
+2. Go to API Keys and create a new key
+3. Copy the key (starts with `re_`)
+4. Add it to your environment variables
+
+**Note**: 
+- WebAuthn passkeys are domain-specific. You'll need to register a new passkey on each domain (localhost, production, etc.)
+- The free Resend tier allows 100 emails/day which is plenty for personal use

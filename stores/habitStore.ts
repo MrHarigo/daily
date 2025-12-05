@@ -110,12 +110,13 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
   createHabit: async (name, type, targetValue) => {
     try {
-      const habit = await api.post<Habit>('/habits', {
+      await api.post<Habit>('/habits', {
         name,
         type,
         target_value: targetValue,
       });
-      set((state) => ({ habits: [...state.habits, habit] }));
+      // Refresh from server to ensure consistency
+      await get().fetchHabits();
     } catch (error) {
       console.error('Failed to create habit:', error);
       throw error;

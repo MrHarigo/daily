@@ -5,11 +5,18 @@ import { requireAuth } from '@/lib/auth';
 export async function GET() {
   const auth = await requireAuth();
   if ('error' in auth) return auth.error;
+  
   try {
+    // Only get timers for habits owned by the user
     const timers = await query(
-      `SELECT habit_id, to_char(date, 'YYYY-MM-DD') as date, started_at, accumulated_seconds, is_running FROM active_timers`
+      `SELECT at.habit_id, to_char(at.date, 'YYYY-MM-DD') as date, at.started_at, at.accumulated_seconds, at.is_running 
+       FROM active_timers at
+       INNER JOIN habits h ON at.habit_id = h.id
+       WHERE h.user_id = $1`,
+      [auth.userId]
     );
     return NextResponse.json(timers);
-  } catch { return NextResponse.json({ error: 'Failed' }, { status: 500 }); }
+  } catch {
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+  }
 }
-
