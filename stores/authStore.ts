@@ -32,6 +32,7 @@ interface AuthState {
   verifyCode: (email: string, code: string) => Promise<{ isNewUser: boolean; username?: string }>;
   registerPasskey: (username?: string) => Promise<void>;
   loginWithPasskey: () => Promise<void>;
+  finalizeEmailLogin: () => Promise<void>;
   logout: () => Promise<void>;
   reset: () => void;
 }
@@ -121,7 +122,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Registration failed');
       }
     } catch (error) {
-      console.error('Registration error:', error);
+      const err = error as { name?: string; message?: string };
+      // Don't log "already registered" or user cancellation errors
+      if (err?.name !== 'InvalidStateError' && 
+          err?.name !== 'NotAllowedError' &&
+          !err?.message?.includes('previously registered')) {
+        console.error('Registration error:', error);
+      }
       throw error;
     }
   },
@@ -145,6 +152,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (error) {
       console.error('Login error:', error);
+      throw error;
+    }
+  },
+
+  // Finalize login after email verification (for users who already have a passkey registered)
+  finalizeEmailLogin: async () => {
+    try {
+      const result = await api.post<{ success: boolean }>('/auth/finalize-email-login', {});
+      if (result.success) {
+        set({ verifiedEmail: null, isNewUser: false });
+        await get().checkAuth();
+      } else {
+        throw new Error('Failed to finalize login');
+      }
+    } catch (error) {
+      console.error('Finalize email login error:', error);
       throw error;
     }
   },

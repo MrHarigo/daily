@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 type Step = 'initial' | 'email' | 'code' | 'username' | 'passkey';
 
 export function Login() {
-  const { sendCode, verifyCode, registerPasskey, loginWithPasskey, directPasskeyLogin, reset } = useAuthStore();
+  const { sendCode, verifyCode, registerPasskey, directPasskeyLogin, finalizeEmailLogin, reset } = useAuthStore();
   
   const [step, setStep] = useState<Step>('initial');
   const [email, setEmail] = useState('');
@@ -17,6 +17,8 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(0);
   
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -27,6 +29,17 @@ export function Login() {
       return () => clearTimeout(timer);
     }
   }, [cooldown]);
+
+  // Redirect countdown for already registered case
+  useEffect(() => {
+    if (redirectCountdown > 0) {
+      const timer = setTimeout(() => setRedirectCountdown(c => c - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (redirectCountdown === 0 && alreadyRegistered) {
+      // Countdown finished, finalize login
+      finalizeEmailLogin();
+    }
+  }, [redirectCountdown, alreadyRegistered, finalizeEmailLogin]);
 
   // Focus first code input when entering code step
   useEffect(() => {
@@ -124,26 +137,17 @@ export function Login() {
     try {
       await registerPasskey(isNewUser ? username.trim() : undefined);
     } catch (err) {
-      if ((err as { name?: string })?.name !== 'NotAllowedError') {
+      const error = err as { name?: string; message?: string };
+      
+      // Check if authenticator was already registered
+      if (error?.name === 'InvalidStateError' || 
+          error?.message?.includes('previously registered') ||
+          error?.message?.includes('already registered')) {
+        // Device already has a passkey - show success and redirect
+        setAlreadyRegistered(true);
+        setRedirectCountdown(3);
+      } else if (error?.name !== 'NotAllowedError') {
         setError(err instanceof Error ? err.message : 'Registration failed');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleLoginPasskey = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      await loginWithPasskey();
-    } catch (err) {
-      // If login fails (no passkey on this device), offer to register a new one
-      if ((err as { name?: string })?.name === 'NotAllowedError') {
-        // User cancelled - don't show error
-      } else {
-        setError('No passkey found for this device. Register a new one below.');
       }
     } finally {
       setIsLoading(false);
@@ -429,87 +433,87 @@ export function Login() {
             </form>
           )}
 
-          {/* Step 4: Passkey Registration */}
+          {/* Passkey Registration */}
           {step === 'passkey' && (
             <div className="space-y-6">
-              <div className="text-center">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-surface-700 flex items-center justify-center">
-                  <svg className="w-10 h-10 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                      d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold mb-2">
-                  {isNewUser ? 'Set up Touch ID' : `Welcome back${existingUsername ? `, ${existingUsername}` : ''}!`}
-                </h2>
-                <p className="text-gray-400 text-sm">
-                  {isNewUser 
-                    ? 'Use your fingerprint for fast, secure access' 
-                    : 'Use Touch ID to sign in, or register this device'
-                  }
-                </p>
-              </div>
+              {alreadyRegistered ? (
+                // Already registered - show success and countdown
+                <>
+                  <div className="text-center">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-accent/20 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h2 className="text-xl font-semibold mb-2">You&apos;re all set!</h2>
+                    <p className="text-gray-400 text-sm">
+                      This device already has Touch ID registered.<br />
+                      Use it next time for instant sign-in.
+                    </p>
+                  </div>
 
-              {error && (
-                <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 text-center">
-                  <p className="text-danger text-sm">{error}</p>
-                </div>
+                  <p className="text-center text-gray-500 text-xs">
+                    Redirecting to the app in {redirectCountdown}...
+                  </p>
+                </>
+              ) : (
+                // Normal registration flow
+                <>
+                  <div className="text-center">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-surface-700 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                      </svg>
+                    </div>
+                    <h2 className="text-xl font-semibold mb-2">
+                      {isNewUser ? 'Set up Touch ID' : `Welcome back${existingUsername ? `, ${existingUsername}` : ''}!`}
+                    </h2>
+                    <p className="text-gray-400 text-sm">
+                      {isNewUser 
+                        ? 'Use your fingerprint for fast, secure access' 
+                        : 'Register this device for quick sign-in next time'
+                      }
+                    </p>
+                  </div>
+
+                  {error && (
+                    <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 text-center">
+                      <p className="text-danger text-sm">{error}</p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleRegisterPasskey}
+                    disabled={isLoading}
+                    className="btn btn-primary w-full py-3 text-lg"
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-5 h-5 border-2 border-surface-900 border-t-transparent rounded-full animate-spin" />
+                        Setting up...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                        </svg>
+                        {isNewUser ? 'Set up Touch ID' : 'Register this device'}
+                      </span>
+                    )}
+                  </button>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <button onClick={handleBack} className="text-gray-400 hover:text-gray-300">
+                      ← Back
+                    </button>
+                    <button onClick={handleStartOver} className="text-gray-400 hover:text-gray-300">
+                      Use different email
+                    </button>
+                  </div>
+                </>
               )}
-
-              {!isNewUser && (
-                <button
-                  onClick={handleLoginPasskey}
-                  disabled={isLoading}
-                  className="btn btn-primary w-full py-3 text-lg"
-                >
-                {isLoading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-5 h-5 border-2 border-surface-900 border-t-transparent rounded-full animate-spin" />
-                    Authenticating...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
-                    </svg>
-                      Sign in with Touch ID
-                  </span>
-                )}
-              </button>
-              )}
-
-              <button
-                onClick={handleRegisterPasskey}
-                disabled={isLoading}
-                className={`w-full py-3 ${isNewUser ? 'btn btn-primary text-lg' : 'btn btn-secondary'}`}
-              >
-                {isLoading && isNewUser ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-5 h-5 border-2 border-surface-900 border-t-transparent rounded-full animate-spin" />
-                    Setting up...
-                  </span>
-                ) : isNewUser ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
-                    </svg>
-                    Set up Touch ID
-                  </span>
-                ) : (
-                  'Register new device'
-                )}
-              </button>
-
-              <div className="flex items-center justify-between text-sm">
-                <button onClick={handleBack} className="text-gray-400 hover:text-gray-300">
-                  ← Back
-                </button>
-                <button onClick={handleStartOver} className="text-gray-400 hover:text-gray-300">
-                  Use different email
-                </button>
-              </div>
             </div>
           )}
         </div>
