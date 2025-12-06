@@ -4,7 +4,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendVerificationCode(email: string, code: string) {
   const { error } = await resend.emails.send({
-    from: 'Daily Habits <onboarding@resend.dev>',
+    from: 'Daily Habits <noreply@daily.harigo.me>',
     to: email,
     subject: `Your verification code: ${code}`,
     html: `
