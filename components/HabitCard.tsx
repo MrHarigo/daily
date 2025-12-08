@@ -124,7 +124,7 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
               ref={checkboxRef as React.RefObject<HTMLButtonElement>}
               onClick={handleToggle}
               disabled={disabled}
-              className={`w-7 h-7 rounded-md border-2 flex items-center justify-center transition-all ${
+              className={`btn-press w-7 h-7 rounded-md border-2 flex items-center justify-center transition-all ${
                 isCompleted
                   ? 'bg-accent border-accent text-surface-900'
                   : 'border-surface-500 hover:border-accent'
@@ -189,13 +189,13 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
             <button
               onClick={() => handleIncrement(-1)}
               disabled={currentValue <= 0}
-              className="w-10 h-10 rounded-lg bg-surface-700 hover:bg-surface-600 active:scale-90 active:bg-surface-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-xl font-bold transition-all"
+              className="btn-press w-10 h-10 rounded-lg bg-surface-700 hover:bg-surface-600 active:scale-90 active:bg-surface-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-xl font-bold transition-all"
             >
               −
             </button>
             <button
               onClick={() => handleIncrement(1)}
-              className="w-10 h-10 rounded-lg bg-surface-700 hover:bg-surface-600 active:scale-90 active:bg-surface-500 flex items-center justify-center text-xl font-bold transition-all"
+              className="btn-press w-10 h-10 rounded-lg bg-surface-700 hover:bg-surface-600 active:scale-90 active:bg-surface-500 flex items-center justify-center text-xl font-bold transition-all"
             >
               +
             </button>
@@ -205,7 +205,7 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
         {habit.type === 'time' && !disabled && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="btn btn-ghost text-sm"
+            className="btn-ghost-plain text-sm"
           >
             {isExpanded ? 'Hide' : 'Timer'}
           </button>

@@ -188,3 +188,45 @@ body {
 
 .from-accent { --tw-gradient-from: var(--color-accent); }
 .to-accent-bright { --tw-gradient-to: var(--color-accent-bright); }
+
+/* Button press ripple effect */
+.btn-press {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-press::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--color-accent) 60%, transparent) 0%, transparent 70%);
+  opacity: 0;
+  transform: scale(2.5);
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+  pointer-events: none;
+}
+
+.btn-press:active::after {
+  opacity: 1;
+  transform: scale(0);
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-press::after {
+    transition: none;
+  }
+}
+
+/* Plain ghost button without focus ring */
+.btn-ghost-plain {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  color: #d1d5db;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-ghost-plain:hover {
+  background-color: var(--color-surface-700);
+  color: white;
+}

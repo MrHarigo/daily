@@ -65,7 +65,7 @@ export default function Home() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  className={`btn-press flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
                     activeTab === tab.id
                       ? 'bg-accent/10 text-accent'
                       : 'text-gray-400 hover:text-gray-200 hover:bg-surface-800'
