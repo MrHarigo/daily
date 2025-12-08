@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useOptimistic, useTransition } from 'react';
 import confetti from 'canvas-confetti';
-import { Habit, useHabitStore } from '@/stores/habitStore';
+import { Habit, ActiveTimer, useHabitStore } from '@/stores/habitStore';
 
 interface TimerProps {
   habit: Habit;
@@ -15,18 +15,26 @@ export function Timer({ habit, date }: TimerProps) {
 
   const [displayTime, setDisplayTime] = useState(0);
   const intervalRef = useRef<number | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const stoppedTimeRef = useRef<number | null>(null); // Remember time when stopped
 
-  // Calculate current display time
+  // Optimistic timer state
+  const [optimisticTimer, setOptimisticTimer] = useOptimistic<
+    ActiveTimer | undefined,
+    ActiveTimer | null
+  >(timer, (_current, update) => update ?? undefined);
+
+  // Calculate current display time based on optimistic timer
   useEffect(() => {
     const updateTime = () => {
-      if (!timer) {
+      if (!optimisticTimer) {
         setDisplayTime(0);
         return;
       }
 
-      let elapsed = timer.accumulated_seconds;
-      if (timer.is_running) {
-        const startedAt = new Date(timer.started_at).getTime();
+      let elapsed = optimisticTimer.accumulated_seconds;
+      if (optimisticTimer.is_running) {
+        const startedAt = new Date(optimisticTimer.started_at).getTime();
         const now = Date.now();
         elapsed += Math.floor((now - startedAt) / 1000);
       }
@@ -35,7 +43,7 @@ export function Timer({ habit, date }: TimerProps) {
 
     updateTime();
 
-    if (timer?.is_running) {
+    if (optimisticTimer?.is_running) {
       intervalRef.current = window.setInterval(updateTime, 1000);
     }
 
@@ -44,7 +52,7 @@ export function Timer({ habit, date }: TimerProps) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [timer]);
+  }, [optimisticTimer]);
 
   const formatTime = (totalSeconds: number) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -58,25 +66,78 @@ export function Timer({ habit, date }: TimerProps) {
   };
 
   const targetSeconds = (habit.target_value || 0) * 60;
-  const isRunning = timer?.is_running ?? false;
+  const isRunning = optimisticTimer?.is_running ?? false;
 
   // Get current completion value (previously saved time)
   const completionKey = `${habit.id}-${date}`;
   const currentCompletion = completions[completionKey];
   const existingValue = currentCompletion?.value || 0;
-  
-  // When timer is active, accumulated_seconds already includes existing value from backend
-  // When no timer, show existing saved value
-  const totalTime = timer ? displayTime : existingValue;
+
+  // Clear stoppedTimeRef when server value catches up
+  if (stoppedTimeRef.current !== null && existingValue >= stoppedTimeRef.current) {
+    stoppedTimeRef.current = null;
+  }
+
+  // When timer is active, show displayTime
+  // When stopped, show stoppedTimeRef (until server catches up) or existingValue
+  const totalTime = optimisticTimer
+    ? displayTime
+    : (stoppedTimeRef.current ?? existingValue);
   const progress = targetSeconds > 0 ? Math.min((totalTime / targetSeconds) * 100, 100) : 0;
 
-  const handleStopTimer = async () => {
-    // Check if stopping will complete the goal (totalTime already includes all time)
+  const handleStartTimer = () => {
+    if (isPending) return;
+
+    // If resuming a paused timer, use its accumulated time
+    // If starting fresh, use existingValue (saved completion) or stoppedTimeRef
+    const accumulatedSeconds = optimisticTimer?.accumulated_seconds
+      ?? stoppedTimeRef.current
+      ?? existingValue;
+
+    startTransition(async () => {
+      // Optimistically show timer as running
+      setOptimisticTimer({
+        habit_id: habit.id,
+        date,
+        started_at: new Date().toISOString(),
+        accumulated_seconds: accumulatedSeconds,
+        is_running: true,
+      });
+      // Clear stopped time after optimistic update is applied
+      stoppedTimeRef.current = null;
+      await startTimer(habit.id, date);
+    });
+  };
+
+  const handlePauseTimer = () => {
+    if (isPending || !optimisticTimer) return;
+
+    startTransition(async () => {
+      // Optimistically show timer as paused with current accumulated time
+      setOptimisticTimer({
+        ...optimisticTimer,
+        is_running: false,
+        accumulated_seconds: displayTime,
+      });
+      await pauseTimer(habit.id);
+    });
+  };
+
+  const handleStopTimer = () => {
+    if (isPending) return;
+
     const wasCompleted = existingValue >= targetSeconds;
     const willComplete = targetSeconds > 0 && totalTime >= targetSeconds && !wasCompleted;
-    
-    await stopTimer(habit.id);
-    
+
+    // Remember the current time so it doesn't flash back to old value
+    stoppedTimeRef.current = displayTime;
+
+    startTransition(async () => {
+      // Optimistically remove timer (store already does this too)
+      setOptimisticTimer(null);
+      await stopTimer(habit.id);
+    });
+
     if (willComplete) {
       confetti({
         particleCount: 80,
@@ -85,6 +146,16 @@ export function Timer({ habit, date }: TimerProps) {
         colors: ['#00D9FF', '#00B8D4', '#4DD0E1', '#80DEEA'],
       });
     }
+  };
+
+  const handleResetTimer = () => {
+    if (isPending) return;
+
+    startTransition(async () => {
+      // Optimistically remove timer
+      setOptimisticTimer(null);
+      await resetTimer(habit.id);
+    });
   };
 
   return (
@@ -144,33 +215,37 @@ export function Timer({ habit, date }: TimerProps) {
 
       {/* Controls */}
       <div className="flex items-center justify-center gap-3">
-        {!timer || !isRunning ? (
+        {!optimisticTimer || !isRunning ? (
           <button
-            onClick={() => startTimer(habit.id, date)}
-            className="btn btn-primary px-8"
+            onClick={handleStartTimer}
+            disabled={isPending}
+            className="btn btn-primary px-8 disabled:opacity-50"
           >
-            {timer ? 'Resume' : 'Start'}
+            {optimisticTimer ? 'Resume' : 'Start'}
           </button>
         ) : (
           <button
-            onClick={() => pauseTimer(habit.id)}
-            className="btn btn-secondary px-8"
+            onClick={handlePauseTimer}
+            disabled={isPending}
+            className="btn btn-secondary px-8 disabled:opacity-50"
           >
             Pause
           </button>
         )}
 
-        {timer && (
+        {optimisticTimer && (
           <>
             <button
               onClick={handleStopTimer}
-              className="btn btn-ghost text-accent"
+              disabled={isPending}
+              className="btn btn-ghost text-accent disabled:opacity-50"
             >
               Save & Stop
             </button>
             <button
-              onClick={() => resetTimer(habit.id)}
-              className="btn btn-ghost text-danger"
+              onClick={handleResetTimer}
+              disabled={isPending}
+              className="btn btn-ghost text-danger disabled:opacity-50"
             >
               Reset
             </button>

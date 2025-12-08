@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useOptimistic, useTransition, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Habit, HabitCompletion, useHabitStore } from '@/stores/habitStore';
 import { Timer } from './Timer';
@@ -44,32 +44,96 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
   const [editMinutes, setEditMinutes] = useState('');
   const [editSeconds, setEditSeconds] = useState('');
   const checkboxRef = useRef<HTMLElement>(null);
+  const [isPending, startTransition] = useTransition();
 
-  const isCompleted = completion?.completed ?? false;
-  const currentValue = completion?.value ?? 0;
+  // Local optimistic state for count (simpler than useOptimistic for debouncing)
+  const serverValue = completion?.value ?? 0;
+  const [localValue, setLocalValue] = useState(serverValue);
+  const pendingDeltaRef = useRef(0);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync local value when server value changes (after debounced request completes)
+  useEffect(() => {
+    // Only sync if we're not in the middle of local edits
+    if (pendingDeltaRef.current === 0) {
+      setLocalValue(serverValue);
+    }
+  }, [serverValue]);
+
+  // Optimistic state for toggle (boolean habits)
+  const [optimisticCompletion, setOptimisticCompletion] = useOptimistic(
+    completion,
+    (current, update: Partial<HabitCompletion>) => ({
+      habit_id: habit.id,
+      date,
+      value: current?.value ?? 0,
+      completed: current?.completed ?? false,
+      ...current,
+      ...update,
+    })
+  );
+
+  // For boolean habits, use optimistic completion
+  // For count habits, use local value
+  const isCompleted = habit.type === 'count'
+    ? localValue >= (habit.target_value || 1)
+    : (optimisticCompletion?.completed ?? false);
+  const currentValue = habit.type === 'count' ? localValue : (optimisticCompletion?.value ?? 0);
 
   const handleToggle = () => {
-    if (disabled) return;
+    if (disabled || isPending) return;
+
+    const newCompleted = !isCompleted;
     // Trigger confetti when completing (not when uncompleting)
-    if (!isCompleted) {
+    if (newCompleted) {
       triggerConfetti(checkboxRef.current);
     }
-    toggleCompletion(habit.id, date);
+
+    startTransition(async () => {
+      // Optimistically update UI immediately
+      setOptimisticCompletion({
+        completed: newCompleted,
+        value: newCompleted ? 1 : 0,
+      });
+      // Then sync with server
+      await toggleCompletion(habit.id, date);
+    });
   };
 
   const handleIncrement = (delta: number) => {
     if (disabled) return;
-    // Check if this increment will complete the habit
-    const newValue = currentValue + delta;
+
+    // Calculate new value immediately
+    const newValue = Math.max(0, localValue + delta);
     const target = habit.target_value || 1;
-    const wasCompleted = currentValue >= target;
+    const wasCompleted = localValue >= target;
     const willBeCompleted = newValue >= target;
-    
+
+    // Trigger confetti when completing
     if (!wasCompleted && willBeCompleted && delta > 0) {
       triggerConfetti(checkboxRef.current);
     }
-    
-    incrementCount(habit.id, date, delta);
+
+    // Update local state immediately (instant UI feedback)
+    setLocalValue(newValue);
+
+    // Accumulate the delta for server
+    pendingDeltaRef.current += delta;
+
+    // Clear existing debounce timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new debounce timer - send accumulated delta after 300ms idle
+    debounceTimerRef.current = setTimeout(async () => {
+      const totalDelta = pendingDeltaRef.current;
+      pendingDeltaRef.current = 0; // Reset before async call
+
+      if (totalDelta !== 0) {
+        await incrementCount(habit.id, date, totalDelta);
+      }
+    }, 300);
   };
 
   const handleEditTime = () => {
@@ -84,18 +148,26 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
     const mins = parseInt(editMinutes) || 0;
     const secs = parseInt(editSeconds) || 0;
     const totalSeconds = mins * 60 + secs;
-    
-    // Check if this will complete the habit
+
     const targetSeconds = (habit.target_value || 0) * 60;
     const wasCompleted = currentValue >= targetSeconds;
     const willBeCompleted = totalSeconds >= targetSeconds;
-    
+
     if (!wasCompleted && willBeCompleted && targetSeconds > 0) {
       triggerConfetti();
     }
-    
-    setTimeValue(habit.id, date, totalSeconds, habit.target_value);
+
     setIsEditingTime(false);
+
+    startTransition(async () => {
+      // Optimistically update UI immediately
+      setOptimisticCompletion({
+        value: totalSeconds,
+        completed: willBeCompleted,
+      });
+      // Then sync with server
+      await setTimeValue(habit.id, date, totalSeconds, habit.target_value);
+    });
   };
 
   const handleCancelEdit = () => {
