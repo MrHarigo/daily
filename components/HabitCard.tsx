@@ -128,7 +128,7 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
                 isCompleted
                   ? 'bg-accent border-accent text-surface-900'
                   : 'border-surface-500 hover:border-accent'
-              } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+              } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer active:scale-90'}`}
             >
               {isCompleted && (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -162,7 +162,7 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
               isCompleted
                 ? 'bg-accent text-surface-900'
                 : 'bg-surface-700 text-gray-300'
-            } ${!disabled ? 'hover:ring-2 hover:ring-accent/50 cursor-pointer' : ''}`}
+            } ${!disabled ? 'hover:ring-2 hover:ring-accent/50 cursor-pointer active:scale-90' : ''}`}
             title="Click to edit time"
           >
             <span className="text-sm font-bold leading-none">{Math.floor(currentValue / 60)}</span>
@@ -189,13 +189,13 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
             <button
               onClick={() => handleIncrement(-1)}
               disabled={currentValue <= 0}
-              className="w-10 h-10 rounded-lg bg-surface-700 hover:bg-surface-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-xl font-bold transition-colors"
+              className="w-10 h-10 rounded-lg bg-surface-700 hover:bg-surface-600 active:scale-90 active:bg-surface-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-xl font-bold transition-all"
             >
               −
             </button>
             <button
               onClick={() => handleIncrement(1)}
-              className="w-10 h-10 rounded-lg bg-surface-700 hover:bg-surface-600 flex items-center justify-center text-xl font-bold transition-colors"
+              className="w-10 h-10 rounded-lg bg-surface-700 hover:bg-surface-600 active:scale-90 active:bg-surface-500 flex items-center justify-center text-xl font-bold transition-all"
             >
               +
             </button>

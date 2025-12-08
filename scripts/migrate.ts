@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool } from '@neondatabase/serverless';
 import * as fs from 'fs';
 import * as path from 'path';
 

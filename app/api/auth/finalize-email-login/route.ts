@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import { sessionOptions, SessionData } from '@/lib/session';
-import { pool } from '@/lib/db';
+import { queryOne } from '@/lib/db';
 
 // Finalize login for users who verified email but already have a passkey registered
 export async function POST() {
   try {
     const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
-    
+
     if (!session.verifiedEmail) {
       return NextResponse.json(
         { error: 'No verified email in session' },
@@ -17,19 +17,17 @@ export async function POST() {
     }
 
     // Find user by email
-    const userResult = await pool.query(
+    const user = await queryOne<{ id: string; username: string }>(
       'SELECT id, username FROM users WHERE email = $1',
       [session.verifiedEmail]
     );
 
-    if (userResult.rows.length === 0) {
+    if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
-
-    const user = userResult.rows[0];
 
     // Set session as logged in
     session.userId = user.id;
