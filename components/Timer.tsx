@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useOptimistic, useTransition } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { Habit, ActiveTimer, useHabitStore } from '@/stores/habitStore';
 
@@ -15,14 +15,21 @@ export function Timer({ habit, date }: TimerProps) {
 
   const [displayTime, setDisplayTime] = useState(0);
   const intervalRef = useRef<number | null>(null);
-  const [isPending, startTransition] = useTransition();
   const stoppedTimeRef = useRef<number | null>(null); // Remember time when stopped
 
-  // Optimistic timer state
-  const [optimisticTimer, setOptimisticTimer] = useOptimistic<
-    ActiveTimer | undefined,
-    ActiveTimer | null
-  >(timer, (_current, update) => update ?? undefined);
+  // Local optimistic timer state (immediate updates, no startTransition delay)
+  const [localTimer, setLocalTimer] = useState<ActiveTimer | null>(null);
+  const isLocalOverride = useRef(false);
+
+  // Sync local timer with server timer when server responds
+  useEffect(() => {
+    if (!isLocalOverride.current) {
+      setLocalTimer(timer ?? null);
+    }
+  }, [timer]);
+
+  // Use local timer for display (immediate), falls back to server timer
+  const optimisticTimer = localTimer;
 
   // Calculate current display time based on optimistic timer
   useEffect(() => {
@@ -85,58 +92,62 @@ export function Timer({ habit, date }: TimerProps) {
     : (stoppedTimeRef.current ?? existingValue);
   const progress = targetSeconds > 0 ? Math.min((totalTime / targetSeconds) * 100, 100) : 0;
 
-  const handleStartTimer = () => {
-    if (isPending) return;
-
+  const handleStartTimer = async () => {
     // If resuming a paused timer, use its accumulated time
     // If starting fresh, use existingValue (saved completion) or stoppedTimeRef
     const accumulatedSeconds = optimisticTimer?.accumulated_seconds
       ?? stoppedTimeRef.current
       ?? existingValue;
 
-    startTransition(async () => {
-      // Optimistically show timer as running
-      setOptimisticTimer({
-        habit_id: habit.id,
-        date,
-        started_at: new Date().toISOString(),
-        accumulated_seconds: accumulatedSeconds,
-        is_running: true,
-      });
-      // Clear stopped time after optimistic update is applied
-      stoppedTimeRef.current = null;
-      await startTimer(habit.id, date);
+    // Set displayTime immediately to prevent flicker on first click
+    setDisplayTime(accumulatedSeconds);
+
+    // Update timer state immediately (no startTransition delay)
+    isLocalOverride.current = true;
+    setLocalTimer({
+      habit_id: habit.id,
+      date,
+      started_at: new Date().toISOString(),
+      accumulated_seconds: accumulatedSeconds,
+      is_running: true,
     });
+    stoppedTimeRef.current = null;
+
+    // Sync with server
+    await startTimer(habit.id, date);
+    isLocalOverride.current = false;
   };
 
-  const handlePauseTimer = () => {
-    if (isPending || !optimisticTimer) return;
+  const handlePauseTimer = async () => {
+    if (!optimisticTimer) return;
 
-    startTransition(async () => {
-      // Optimistically show timer as paused with current accumulated time
-      setOptimisticTimer({
-        ...optimisticTimer,
-        is_running: false,
-        accumulated_seconds: displayTime,
-      });
-      await pauseTimer(habit.id);
+    // Update immediately
+    isLocalOverride.current = true;
+    setLocalTimer({
+      ...optimisticTimer,
+      is_running: false,
+      accumulated_seconds: displayTime,
     });
+
+    // Sync with server
+    await pauseTimer(habit.id);
+    isLocalOverride.current = false;
   };
 
-  const handleStopTimer = () => {
-    if (isPending) return;
-
+  const handleStopTimer = async () => {
     const wasCompleted = existingValue >= targetSeconds;
     const willComplete = targetSeconds > 0 && totalTime >= targetSeconds && !wasCompleted;
 
     // Remember the current time so it doesn't flash back to old value
     stoppedTimeRef.current = displayTime;
 
-    startTransition(async () => {
-      // Optimistically remove timer (store already does this too)
-      setOptimisticTimer(null);
-      await stopTimer(habit.id);
-    });
+    // Update immediately
+    isLocalOverride.current = true;
+    setLocalTimer(null);
+
+    // Sync with server
+    await stopTimer(habit.id);
+    isLocalOverride.current = false;
 
     if (willComplete) {
       confetti({
@@ -148,14 +159,14 @@ export function Timer({ habit, date }: TimerProps) {
     }
   };
 
-  const handleResetTimer = () => {
-    if (isPending) return;
+  const handleResetTimer = async () => {
+    // Update immediately
+    isLocalOverride.current = true;
+    setLocalTimer(null);
 
-    startTransition(async () => {
-      // Optimistically remove timer
-      setOptimisticTimer(null);
-      await resetTimer(habit.id);
-    });
+    // Sync with server
+    await resetTimer(habit.id);
+    isLocalOverride.current = false;
   };
 
   return (
@@ -218,16 +229,14 @@ export function Timer({ habit, date }: TimerProps) {
         {!optimisticTimer || !isRunning ? (
           <button
             onClick={handleStartTimer}
-            disabled={isPending}
-            className="btn btn-primary px-8 disabled:opacity-50"
+            className="btn btn-primary px-8"
           >
             {optimisticTimer ? 'Resume' : 'Start'}
           </button>
         ) : (
           <button
             onClick={handlePauseTimer}
-            disabled={isPending}
-            className="btn btn-secondary px-8 disabled:opacity-50"
+            className="btn btn-secondary px-8"
           >
             Pause
           </button>
@@ -237,15 +246,13 @@ export function Timer({ habit, date }: TimerProps) {
           <>
             <button
               onClick={handleStopTimer}
-              disabled={isPending}
-              className="btn btn-ghost text-accent disabled:opacity-50"
+              className="btn btn-ghost text-accent"
             >
               Save & Stop
             </button>
             <button
               onClick={handleResetTimer}
-              disabled={isPending}
-              className="btn btn-ghost text-danger disabled:opacity-50"
+              className="btn btn-ghost text-danger"
             >
               Reset
             </button>
