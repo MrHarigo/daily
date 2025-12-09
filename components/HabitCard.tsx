@@ -39,7 +39,7 @@ const triggerConfetti = (element?: HTMLElement | null) => {
 };
 
 export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdate }: HabitCardProps) {
-  const { toggleCompletion, incrementCount, setTimeValue } = useHabitStore();
+  const { toggleCompletion, incrementCount, setTimeValue, resetTimer } = useHabitStore();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingTime, setIsEditingTime] = useState(false);
   const [editMinutes, setEditMinutes] = useState('');
@@ -177,6 +177,8 @@ export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdat
         value: totalSeconds,
         completed: willBeCompleted,
       });
+      // Clear any active timer when manually setting time
+      await resetTimer(habit.id);
       // Then sync with server
       await setTimeValue(habit.id, date, totalSeconds, habit.target_value);
     });
@@ -299,7 +301,7 @@ export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdat
       {/* Timer panel for time-based habits */}
       {habit.type === 'time' && isExpanded && !disabled && (
         <div className="mt-4 pt-4 border-t border-surface-600">
-          <Timer habit={habit} date={date} />
+          <Timer habit={habit} date={date} onOptimisticUpdate={onOptimisticUpdate} />
         </div>
       )}
 

@@ -7,9 +7,10 @@ import { Habit, ActiveTimer, useHabitStore } from '@/stores/habitStore';
 interface TimerProps {
   habit: Habit;
   date: string;
+  onOptimisticUpdate?: (habitId: string, completed: boolean, value: number) => void;
 }
 
-export function Timer({ habit, date }: TimerProps) {
+export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
   const { activeTimers, completions, startTimer, pauseTimer, stopTimer, resetTimer } = useHabitStore();
   const timer = activeTimers[habit.id];
 
@@ -145,10 +146,10 @@ export function Timer({ habit, date }: TimerProps) {
     isLocalOverride.current = true;
     setLocalTimer(null);
 
-    // Sync with server
-    await stopTimer(habit.id);
-    isLocalOverride.current = false;
+    // Notify parent for instant filtering (before server call)
+    onOptimisticUpdate?.(habit.id, willComplete || wasCompleted, displayTime);
 
+    // Fire confetti immediately (before server call)
     if (willComplete) {
       confetti({
         particleCount: 80,
@@ -157,6 +158,10 @@ export function Timer({ habit, date }: TimerProps) {
         colors: ['#00D9FF', '#00B8D4', '#4DD0E1', '#80DEEA'],
       });
     }
+
+    // Sync with server
+    await stopTimer(habit.id);
+    isLocalOverride.current = false;
   };
 
   const handleResetTimer = async () => {
