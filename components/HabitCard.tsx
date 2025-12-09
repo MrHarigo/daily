@@ -10,6 +10,7 @@ interface HabitCardProps {
   completion?: HabitCompletion;
   date: string;
   disabled?: boolean;
+  onOptimisticUpdate?: (habitId: string, completed: boolean, value: number) => void;
 }
 
 // Trigger confetti from a specific element
@@ -37,7 +38,7 @@ const triggerConfetti = (element?: HTMLElement | null) => {
   }
 };
 
-export function HabitCard({ habit, completion, date, disabled }: HabitCardProps) {
+export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdate }: HabitCardProps) {
   const { toggleCompletion, incrementCount, setTimeValue } = useHabitStore();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingTime, setIsEditingTime] = useState(false);
@@ -84,16 +85,21 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
     if (disabled || isPending) return;
 
     const newCompleted = !isCompleted;
+    const newValue = newCompleted ? 1 : 0;
+
     // Trigger confetti when completing (not when uncompleting)
     if (newCompleted) {
       triggerConfetti(checkboxRef.current);
     }
 
+    // Notify parent for instant filtering
+    onOptimisticUpdate?.(habit.id, newCompleted, newValue);
+
     startTransition(async () => {
       // Optimistically update UI immediately
       setOptimisticCompletion({
         completed: newCompleted,
-        value: newCompleted ? 1 : 0,
+        value: newValue,
       });
       // Then sync with server
       await toggleCompletion(habit.id, date);
@@ -116,6 +122,9 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
 
     // Update local state immediately (instant UI feedback)
     setLocalValue(newValue);
+
+    // Notify parent for instant filtering
+    onOptimisticUpdate?.(habit.id, willBeCompleted, newValue);
 
     // Accumulate the delta for server
     pendingDeltaRef.current += delta;
@@ -158,6 +167,9 @@ export function HabitCard({ habit, completion, date, disabled }: HabitCardProps)
     }
 
     setIsEditingTime(false);
+
+    // Notify parent for instant filtering
+    onOptimisticUpdate?.(habit.id, willBeCompleted, totalSeconds);
 
     startTransition(async () => {
       // Optimistically update UI immediately

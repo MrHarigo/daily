@@ -1,15 +1,32 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useHabitStore } from '@/stores/habitStore';
 import { useCalendarStore } from '@/stores/calendarStore';
 import { HabitCard } from '@/components/HabitCard';
 import { DateSelector } from '@/components/DateSelector';
 
+// Track optimistic completion states for instant filtering
+type OptimisticCompletion = { completed: boolean; value: number };
+
 export function Dashboard() {
   const { habits, completions, selectedDate, setSelectedDate, fetchHabits, fetchCompletions, isLoading } = useHabitStore();
   const { fetchHolidays, fetchDayOffs, isWorkingDay } = useCalendarStore();
   const [showDone, setShowDone] = useState(false);
+
+  // Optimistic completions for instant filtering (before server responds)
+  const [optimisticCompletions, setOptimisticCompletions] = useState<Record<string, OptimisticCompletion>>({});
+
+  // Callback for HabitCard to report optimistic updates
+  const onOptimisticUpdate = useCallback((habitId: string, completed: boolean, value: number) => {
+    const key = `${habitId}-${selectedDate}`;
+    setOptimisticCompletions(prev => ({ ...prev, [key]: { completed, value } }));
+  }, [selectedDate]);
+
+  // Clear optimistic state when server completions update
+  useEffect(() => {
+    setOptimisticCompletions({});
+  }, [completions]);
 
   useEffect(() => {
     const year = new Date().getFullYear();
@@ -31,14 +48,24 @@ export function Dashboard() {
   const isWorkDay = isWorkingDay(selectedDate);
 
   const activeHabits = habits.filter((h) => h.created_at <= selectedDate && !h.paused_at);
-  
+
   const getCompletion = (habitId: string) => {
     const key = `${habitId}-${selectedDate}`;
     return completions[key];
   };
 
-  const todoHabits = activeHabits.filter((h) => !getCompletion(h.id)?.completed);
-  const doneHabits = activeHabits.filter((h) => getCompletion(h.id)?.completed);
+  // Check if habit is completed (using optimistic state first, then server state)
+  const isHabitCompleted = (habitId: string) => {
+    const key = `${habitId}-${selectedDate}`;
+    // Optimistic state takes precedence for instant filtering
+    if (key in optimisticCompletions) {
+      return optimisticCompletions[key].completed;
+    }
+    return completions[key]?.completed ?? false;
+  };
+
+  const todoHabits = activeHabits.filter((h) => !isHabitCompleted(h.id));
+  const doneHabits = activeHabits.filter((h) => isHabitCompleted(h.id));
 
   const completedCount = doneHabits.length;
   const progressPercent = activeHabits.length > 0 ? Math.round((completedCount / activeHabits.length) * 100) : 0;
@@ -102,7 +129,7 @@ export function Dashboard() {
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">To Do ({todoHabits.length})</h2>
               <div className="space-y-3">
                 {todoHabits.map((habit) => (
-                  <HabitCard key={habit.id} habit={habit} completion={getCompletion(habit.id)} date={selectedDate} disabled={!isWorkDay} />
+                  <HabitCard key={habit.id} habit={habit} completion={getCompletion(habit.id)} date={selectedDate} disabled={!isWorkDay} onOptimisticUpdate={onOptimisticUpdate} />
                 ))}
               </div>
             </div>
@@ -118,7 +145,7 @@ export function Dashboard() {
               {showDone && (
                 <div className="space-y-3">
                   {doneHabits.map((habit) => (
-                    <HabitCard key={habit.id} habit={habit} completion={getCompletion(habit.id)} date={selectedDate} disabled={!isWorkDay} />
+                    <HabitCard key={habit.id} habit={habit} completion={getCompletion(habit.id)} date={selectedDate} disabled={!isWorkDay} onOptimisticUpdate={onOptimisticUpdate} />
                   ))}
                 </div>
               )}
