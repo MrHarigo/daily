@@ -15,15 +15,25 @@ interface User {
   username: string;
 }
 
+export interface Device {
+  id: string;
+  device_name: string;
+  created_at: string;
+}
+
 interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   user: User | null;
-  
+
   // Email verification flow state
   verifiedEmail: string | null;
   isNewUser: boolean;
-  
+
+  // Devices
+  devices: Device[];
+  devicesLoading: boolean;
+
   checkAuth: () => Promise<void>;
   // Direct passkey login (no email needed)
   directPasskeyLogin: () => Promise<void>;
@@ -35,6 +45,11 @@ interface AuthState {
   finalizeEmailLogin: () => Promise<void>;
   logout: () => Promise<void>;
   reset: () => void;
+
+  // Device management
+  fetchDevices: () => Promise<void>;
+  addDevice: () => Promise<boolean>;
+  removeDevice: (deviceId: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -43,6 +58,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   verifiedEmail: null,
   isNewUser: false,
+  devices: [],
+  devicesLoading: false,
 
   checkAuth: async () => {
     try {
@@ -183,5 +200,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   reset: () => {
     set({ verifiedEmail: null, isNewUser: false });
+  },
+
+  fetchDevices: async () => {
+    try {
+      set({ devicesLoading: true });
+      const devices = await api.get<Device[]>('/auth/devices');
+      set({ devices, devicesLoading: false });
+    } catch (error) {
+      console.error('Failed to fetch devices:', error);
+      set({ devicesLoading: false });
+    }
+  },
+
+  addDevice: async () => {
+    try {
+      // Get registration options
+      const options = await api.get<PublicKeyCredentialCreationOptionsJSON>('/auth/add-device');
+
+      // Start WebAuthn registration
+      const credential = await startRegistration({ optionsJSON: options });
+
+      // Verify with server
+      const result = await api.post<{ verified: boolean; deviceName: string }>('/auth/add-device', credential);
+
+      if (result.verified) {
+        await get().fetchDevices();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      const err = error as { name?: string };
+      if (err?.name !== 'NotAllowedError') {
+        console.error('Add device error:', error);
+      }
+      throw error;
+    }
+  },
+
+  removeDevice: async (deviceId: string) => {
+    try {
+      await api.delete(`/auth/devices?id=${encodeURIComponent(deviceId)}`);
+      await get().fetchDevices();
+    } catch (error) {
+      console.error('Failed to remove device:', error);
+      throw error;
+    }
   },
 }));
