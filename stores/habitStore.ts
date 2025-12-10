@@ -32,6 +32,8 @@ export interface ActiveTimer {
 
 interface HabitState {
   habits: Habit[];
+  allHabits: Habit[]; // includes paused and archived
+  allHabitsLoading: boolean;
   completions: Record<string, HabitCompletion>; // keyed by `${habit_id}-${date}`
   activeTimers: Record<string, ActiveTimer>; // keyed by habit_id
   isLoading: boolean;
@@ -40,17 +42,19 @@ interface HabitState {
   // Actions
   setSelectedDate: (date: string) => void;
   fetchHabits: () => Promise<void>;
+  fetchAllHabits: () => Promise<void>;
   fetchCompletions: (startDate: string, endDate: string) => Promise<void>;
   createHabit: (name: string, type: HabitType, targetValue?: number) => Promise<void>;
   updateHabit: (id: string, updates: Partial<Habit>) => Promise<void>;
   archiveHabit: (id: string) => Promise<void>;
+  unarchiveHabit: (id: string) => Promise<void>;
   deleteHabit: (id: string) => Promise<void>;
   pauseHabit: (id: string) => Promise<void>;
   unpauseHabit: (id: string) => Promise<void>;
   toggleCompletion: (habitId: string, date: string) => Promise<void>;
   incrementCount: (habitId: string, date: string, delta: number) => Promise<void>;
   setTimeValue: (habitId: string, date: string, seconds: number, targetValue: number | null) => Promise<void>;
-  
+
   // Timer actions
   fetchTimer: (habitId: string) => Promise<void>;
   startTimer: (habitId: string, date: string) => Promise<void>;
@@ -63,6 +67,8 @@ const getCompletionKey = (habitId: string, date: string) => `${habitId}-${date}`
 
 export const useHabitStore = create<HabitState>((set, get) => ({
   habits: [],
+  allHabits: [],
+  allHabitsLoading: false,
   completions: {},
   activeTimers: {},
   isLoading: false,
@@ -75,7 +81,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
       set({ isLoading: true });
       const habits = await api.get<Habit[]>('/habits');
       set({ habits, isLoading: false });
-      
+
       // Also fetch timers for time-based habits
       const timeHabits = habits.filter(h => h.type === 'time');
       for (const habit of timeHabits) {
@@ -84,6 +90,17 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     } catch (error) {
       console.error('Failed to fetch habits:', error);
       set({ isLoading: false });
+    }
+  },
+
+  fetchAllHabits: async () => {
+    try {
+      set({ allHabitsLoading: true });
+      const allHabits = await api.get<Habit[]>('/habits?includeAll=true');
+      set({ allHabits, allHabitsLoading: false });
+    } catch (error) {
+      console.error('Failed to fetch all habits:', error);
+      set({ allHabitsLoading: false });
     }
   },
 
@@ -143,6 +160,16 @@ export const useHabitStore = create<HabitState>((set, get) => ({
       }));
     } catch (error) {
       console.error('Failed to archive habit:', error);
+      throw error;
+    }
+  },
+
+  unarchiveHabit: async (id) => {
+    try {
+      await api.post(`/habits/${id}/unarchive`, {});
+      await get().fetchAllHabits();
+    } catch (error) {
+      console.error('Failed to unarchive habit:', error);
       throw error;
     }
   },

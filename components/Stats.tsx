@@ -1,70 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
-
-interface OverviewStats {
-  longestStreak: number;
-  completedToday: boolean;
-  totalCompletions: number;
-  totalHabits: number;
-}
-
-interface HabitStat {
-  currentStreak: number;
-  completedToday: boolean;
-  totalCompletions: number;
-  totalTime?: number;
-  totalCount?: number;
-}
-
-interface HabitInfo {
-  id: string;
-  name: string;
-  type: 'boolean' | 'count' | 'time';
-  paused_at?: string | null;
-  archived_at?: string | null;
-}
+import { useStatsStore, HabitInfo, HabitStat } from '@/stores/statsStore';
 
 export function Stats() {
-  const [overview, setOverview] = useState<OverviewStats | null>(null);
-  const [habitStats, setHabitStats] = useState<Map<string, HabitStat>>(new Map());
-  const [habits, setHabits] = useState<HabitInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { overview, habits, habitStats, isLoading, fetchStats } = useStatsStore();
   const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [overviewData, habitsData] = await Promise.all([
-          api.get<OverviewStats>('/stats/overview'),
-          api.get<HabitInfo[]>('/habits?includeAll=true'),
-        ]);
-        setOverview(overviewData);
-        setHabits(habitsData);
-
-        // Fetch individual habit stats
-        const statsMap = new Map<string, HabitStat>();
-        await Promise.all(
-          habitsData.map(async (habit) => {
-            try {
-              const stat = await api.get<HabitStat>(`/stats/habit/${habit.id}`);
-              statsMap.set(habit.id, stat);
-            } catch (e) {
-              console.error(`Failed to fetch stats for ${habit.name}:`, e);
-            }
-          })
-        );
-        setHabitStats(statsMap);
-      } catch (error) {
-        console.error('Failed to fetch stats:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+    // Always fetch fresh data, but show cached data while loading
+    fetchStats();
+  }, [fetchStats]);
 
   // Split habits into active, paused, and archived
   const activeHabits = habits.filter(h => !h.paused_at && !h.archived_at);
@@ -72,7 +18,8 @@ export function Stats() {
   const archivedHabits = habits.filter(h => h.archived_at);
   const inactiveHabits = [...pausedHabits, ...archivedHabits];
 
-  if (isLoading) {
+  // Only show full loading state if we have no cached data
+  if (isLoading && !overview) {
     return (
       <div className="flex justify-center py-12">
         <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
