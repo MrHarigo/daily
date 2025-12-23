@@ -34,6 +34,7 @@ interface HabitState {
   habits: Habit[];
   allHabits: Habit[]; // includes paused and archived
   allHabitsLoading: boolean;
+  allHabitsLastFetchTimestamp: number;
   completions: Record<string, HabitCompletion>; // keyed by `${habit_id}-${date}`
   activeTimers: Record<string, ActiveTimer>; // keyed by habit_id
   isLoading: boolean;
@@ -69,6 +70,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   habits: [],
   allHabits: [],
   allHabitsLoading: false,
+  allHabitsLastFetchTimestamp: 0,
   completions: {},
   activeTimers: {},
   isLoading: false,
@@ -94,8 +96,16 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   },
 
   fetchAllHabits: async () => {
+    const state = useHabitStore.getState();
+    const now = Date.now();
+
+    // Skip if already loading AND less than 5 seconds since last fetch attempt
+    if (state.allHabitsLoading && now - state.allHabitsLastFetchTimestamp < 5000) {
+      return;
+    }
+
     try {
-      set({ allHabitsLoading: true });
+      set({ allHabitsLoading: true, allHabitsLastFetchTimestamp: now });
       const allHabits = await api.get<Habit[]>('/habits?includeAll=true');
       set({ allHabits, allHabitsLoading: false });
     } catch (error) {

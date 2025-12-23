@@ -1,37 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-
-function isWorkingDay(date: Date, holidays: Set<string>, dayOffs: Set<string>): boolean {
-  const dayOfWeek = date.getDay();
-  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-  const dateStr = date.toISOString().split('T')[0];
-  return !holidays.has(dateStr) && !dayOffs.has(dateStr);
-}
-
-function calculateStreak(
-  completions: { date: string; completed: boolean }[],
-  workingDays: string[],
-  habitCreatedAt: string,
-  todayStr: string
-): number {
-  let streak = 0;
-  const completionMap = new Map(completions.map(c => [c.date, c.completed]));
-
-  let startIdx = workingDays.length - 1;
-  const lastWorkingDay = workingDays[startIdx];
-  if (lastWorkingDay === todayStr && !completionMap.get(todayStr)) {
-    startIdx--;
-  }
-
-  for (let i = startIdx; i >= 0; i--) {
-    const day = workingDays[i];
-    if (day < habitCreatedAt) break;
-    if (completionMap.get(day)) streak++;
-    else break;
-  }
-  return streak;
-}
+import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -39,10 +9,22 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const habitIds = searchParams.get('habitIds')?.split(',').filter(Boolean);
+    const habitIdsRaw = searchParams.get('habitIds')?.split(',').filter(Boolean);
 
-    if (!habitIds || habitIds.length === 0) {
+    if (!habitIdsRaw || habitIdsRaw.length === 0) {
       return NextResponse.json({ error: 'habitIds parameter required' }, { status: 400 });
+    }
+
+    // Deduplicate and validate UUIDs (PostgreSQL uses lowercase UUID format)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const habitIds = Array.from(new Set(habitIdsRaw)).filter(id => uuidRegex.test(id));
+
+    if (habitIds.length === 0) {
+      return NextResponse.json({ error: 'No valid habit IDs provided' }, { status: 400 });
+    }
+
+    if (habitIds.length > 50) {
+      return NextResponse.json({ error: 'Too many habit IDs (max 50)' }, { status: 400 });
     }
 
     // Verify ownership and fetch all habits at once

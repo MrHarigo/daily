@@ -33,6 +33,7 @@ interface AuthState {
   // Devices
   devices: Device[];
   devicesLoading: boolean;
+  devicesLastFetchTimestamp: number;
 
   checkAuth: () => Promise<void>;
   // Direct passkey login (no email needed)
@@ -60,6 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isNewUser: false,
   devices: [],
   devicesLoading: false,
+  devicesLastFetchTimestamp: 0,
 
   checkAuth: async () => {
     try {
@@ -203,8 +205,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   fetchDevices: async () => {
+    const state = get();
+    const now = Date.now();
+
+    // Skip if already loading AND less than 5 seconds since last fetch attempt
+    if (state.devicesLoading && now - state.devicesLastFetchTimestamp < 5000) {
+      return;
+    }
+
     try {
-      set({ devicesLoading: true });
+      set({ devicesLoading: true, devicesLastFetchTimestamp: now });
       const devices = await api.get<Device[]>('/auth/devices');
       set({ devices, devicesLoading: false });
     } catch (error) {

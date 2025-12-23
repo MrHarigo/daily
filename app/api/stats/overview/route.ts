@@ -1,36 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-
-function isWorkingDay(date: Date, holidays: Set<string>, dayOffs: Set<string>): boolean {
-  const dayOfWeek = date.getDay();
-  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-  const dateStr = date.toISOString().split('T')[0];
-  return !holidays.has(dateStr) && !dayOffs.has(dateStr);
-}
-
-function calculateStreak(completions: { date: string; completed: boolean }[], workingDays: string[], habitCreatedAt: string, todayStr: string): number {
-  let streak = 0;
-  const completionMap = new Map(completions.map(c => [c.date, c.completed]));
-
-  // Start from today and work backwards
-  let startIdx = workingDays.length - 1;
-
-  // If today is a working day but not completed, skip it and start from yesterday
-  // This way we show the "active" streak that can still be extended
-  const lastWorkingDay = workingDays[startIdx];
-  if (lastWorkingDay === todayStr && !completionMap.get(todayStr)) {
-    startIdx--;
-  }
-
-  for (let i = startIdx; i >= 0; i--) {
-    const day = workingDays[i];
-    if (day < habitCreatedAt) break;
-    if (completionMap.get(day)) streak++;
-    else break;
-  }
-  return streak;
-}
+import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
 
 export async function GET() {
   const auth = await requireAuth();

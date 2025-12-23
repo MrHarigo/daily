@@ -29,19 +29,30 @@ interface StatsState {
   habits: HabitInfo[];
   habitStats: Map<string, HabitStat>;
   isLoading: boolean;
+  lastFetchTimestamp: number;
 
   fetchStats: () => Promise<void>;
 }
 
-export const useStatsStore = create<StatsState>((set) => ({
+export const useStatsStore = create<StatsState>((set, get) => ({
   overview: null,
   habits: [],
   habitStats: new Map(),
   isLoading: false,
+  lastFetchTimestamp: 0,
 
   fetchStats: async () => {
+    const state = get();
+    const now = Date.now();
+
+    // Skip if already loading AND less than 5 seconds since last fetch attempt
+    // This prevents stuck states while allowing retry after timeout
+    if (state.isLoading && now - state.lastFetchTimestamp < 5000) {
+      return;
+    }
+
     try {
-      set({ isLoading: true });
+      set({ isLoading: true, lastFetchTimestamp: now });
 
       const [overviewData, habitsData] = await Promise.all([
         api.get<OverviewStats>('/stats/overview'),

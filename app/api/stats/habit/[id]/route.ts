@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-
-function isWorkingDay(date: Date, holidays: Set<string>, dayOffs: Set<string>): boolean {
-  const dayOfWeek = date.getDay();
-  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-  const dateStr = date.toISOString().split('T')[0];
-  return !holidays.has(dateStr) && !dayOffs.has(dateStr);
-}
+import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -51,23 +45,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Calculate streak
-    let streak = 0;
-    const completionMap = new Map(completions.map(c => [c.date, c.completed]));
     const todayStr = today.toISOString().split('T')[0];
-
-    // Start from today, but if today is not completed, skip it to show "active" streak
-    let startIdx = workingDays.length - 1;
-    const lastWorkingDay = workingDays[startIdx];
-    if (lastWorkingDay === todayStr && !completionMap.get(todayStr)) {
-      startIdx--;
-    }
-
-    for (let i = startIdx; i >= 0; i--) {
-      const day = workingDays[i];
-      if (day < createdAt) break;
-      if (completionMap.get(day)) streak++;
-      else break;
-    }
+    const streak = calculateStreak(
+      completions.map(c => ({ date: c.date, completed: c.completed })),
+      workingDays,
+      createdAt,
+      todayStr
+    );
 
     // Total count/time/completions
     let totalTime = 0;
@@ -80,7 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Check if completed today
-    const completedToday = completionMap.get(todayStr) === true;
+    const completedToday = completions.some(c => c.date === todayStr && c.completed);
 
     return NextResponse.json({
       currentStreak: streak,
