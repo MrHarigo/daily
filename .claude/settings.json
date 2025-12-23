@@ -14,8 +14,7 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(git pull:*)",
-      "Bash(claude update:*)",
-      "Read(//Users/utkin/.claude/**)"
+      "Bash(claude update:*)"
     ],
     "deny": [],
     "ask": []
