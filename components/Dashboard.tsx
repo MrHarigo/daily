@@ -5,6 +5,7 @@ import { useHabitStore } from '@/stores/habitStore';
 import { useCalendarStore } from '@/stores/calendarStore';
 import { HabitCard } from '@/components/HabitCard';
 import { DateSelector } from '@/components/DateSelector';
+import { getTodayLocal, formatLocalDate, parseLocalDate } from '@/lib/date-utils';
 
 // Track optimistic completion states for instant filtering
 type OptimisticCompletion = { completed: boolean; value: number };
@@ -37,15 +38,15 @@ export function Dashboard() {
   }, [fetchHolidays, fetchDayOffs, fetchHabits]);
 
   useEffect(() => {
-    const today = new Date(selectedDate);
+    const today = parseLocalDate(selectedDate);
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - today.getDay());
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
-    fetchCompletions(startOfWeek.toISOString().split('T')[0], endOfWeek.toISOString().split('T')[0]);
+    fetchCompletions(formatLocalDate(startOfWeek), formatLocalDate(endOfWeek));
   }, [selectedDate, fetchCompletions]);
 
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const isToday = selectedDate === getTodayLocal();
   const isWorkDay = isWorkingDay(selectedDate);
 
   const habits = getActiveHabits();
@@ -78,7 +79,7 @@ export function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold">{isToday ? "Today's Habits" : 'Habits'}</h1>
           <p className="text-gray-500 mt-1">
-            {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            {parseLocalDate(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <DateSelector selectedDate={selectedDate} onDateChange={setSelectedDate} />

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
+import { getTodayLocal, formatLocalDate } from '@/lib/date-utils';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -38,20 +39,21 @@ export async function GET() {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       if (isWorkingDay(d, holidays, dayOffs)) {
-        workingDays.push(d.toISOString().split('T')[0]);
+        workingDays.push(formatLocalDate(d));
       }
     }
 
     // Find best current streak across all habits
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getTodayLocal();
     let bestStreak = 0;
     let bestStreakCompletedToday = false;
 
     for (const habit of habits) {
       const habitCompletions = completions.filter(c => c.habit_id === habit.id);
+      // Database returns created_at as Date object
       const createdAt = habit.created_at instanceof Date
-        ? habit.created_at.toISOString().split('T')[0]
-        : String(habit.created_at).split('T')[0];
+        ? formatLocalDate(habit.created_at)
+        : String(habit.created_at);
       const streak = calculateStreak(habitCompletions, workingDays, createdAt, todayStr);
       if (streak > bestStreak) {
         bestStreak = streak;

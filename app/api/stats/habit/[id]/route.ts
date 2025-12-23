@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
+import { getTodayLocal, formatLocalDate } from '@/lib/date-utils';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -29,9 +30,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const holidays = new Set(holidaysData.map(h => h.date));
     const dayOffs = new Set(dayOffsData.map(d => d.date));
 
+    // Database returns created_at as string in YYYY-MM-DD format from to_char
+    // But if it's a Date object, format it properly
     const createdAt = habit.created_at instanceof Date
-      ? habit.created_at.toISOString().split('T')[0]
-      : String(habit.created_at).split('T')[0];
+      ? formatLocalDate(habit.created_at)
+      : String(habit.created_at);
 
     // Get working days
     const today = new Date();
@@ -40,12 +43,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       if (isWorkingDay(d, holidays, dayOffs)) {
-        workingDays.push(d.toISOString().split('T')[0]);
+        workingDays.push(formatLocalDate(d));
       }
     }
 
     // Calculate streak
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getTodayLocal();
     const streak = calculateStreak(
       completions.map(c => ({ date: c.date, completed: c.completed })),
       workingDays,

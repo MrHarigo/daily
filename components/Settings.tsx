@@ -5,6 +5,7 @@ import { useHabitStore, Habit } from '@/stores/habitStore';
 import { useCalendarStore } from '@/stores/calendarStore';
 import { useAuthStore } from '@/stores/authStore';
 import { AddHabitModal } from '@/components/AddHabitModal';
+import { parseLocalDate } from '@/lib/date-utils';
 
 interface SettingsProps {
   onLogout: () => void;
@@ -158,7 +159,7 @@ export function Settings({ onLogout }: SettingsProps) {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
+    return parseLocalDate(dateStr).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',

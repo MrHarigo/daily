@@ -2,6 +2,8 @@
  * Shared utilities for stats calculation
  */
 
+import { formatLocalDate } from '@/lib/date-utils';
+
 /**
  * Determines if a given date is a working day
  * @param date The date to check
@@ -16,7 +18,7 @@ export function isWorkingDay(
 ): boolean {
   const dayOfWeek = date.getDay();
   if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-  const dateStr = date.toISOString().split('T')[0];
+  const dateStr = formatLocalDate(date);
   return !holidays.has(dateStr) && !dayOffs.has(dateStr);
 }
 
