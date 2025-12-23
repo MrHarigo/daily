@@ -3,7 +3,6 @@ import { query, queryOne } from '@/lib/db';
 import { sendVerificationCode, generateCode } from '@/lib/email';
 
 // Rate limiting: max 3 codes per email per 10 minutes
-const RATE_LIMIT_WINDOW = 10 * 60 * 1000; // 10 minutes
 const MAX_CODES_PER_WINDOW = 3;
 
 export async function POST(request: NextRequest) {
