@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useOptimistic, useTransition } from 'react';
+import { useState, useRef, useOptimistic, useTransition, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Habit, HabitCompletion, useHabitStore } from '@/stores/habitStore';
 import { Timer } from './Timer';
@@ -62,6 +62,15 @@ export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdat
     }
     setPrevServerValue(serverValue);
   }
+
+  // Cleanup debounce timer on unmount to prevent state updates on unmounted component
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   // Optimistic state for toggle (boolean habits)
   const [optimisticCompletion, setOptimisticCompletion] = useOptimistic(

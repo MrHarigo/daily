@@ -32,13 +32,14 @@ jobs:
       - name: Check for auto-fix loops
         id: check-loop
         run: |
-          # Check if last commit was an auto-fix
+          # Check if last commit was an auto-fix (using regex for robustness)
           RECENT_COMMIT=$(git log -1 --pretty=%B)
           # Check if actor is github-actions bot
           ACTOR="${{ github.actor }}"
 
           # AND condition: must be BOTH auto-fix commit AND bot actor to detect loop
-          if [[ "$RECENT_COMMIT" == "style: auto-fix lint issues" ]] && [[ "$ACTOR" == "github-actions[bot]" ]]; then
+          # Use regex to handle whitespace and variations
+          if [[ "$RECENT_COMMIT" =~ ^style:\ auto-fix\ lint\ issues ]] && [[ "$ACTOR" == "github-actions[bot]" ]]; then
             echo "loop_detected=true" >> $GITHUB_OUTPUT
             echo "⚠️ Auto-fix loop detected - skipping to prevent infinite commits"
           else
@@ -70,8 +71,11 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
-            # Store diff summary for review comment
-            git diff --stat > /tmp/lint-diff.txt
+            # Store diff summary for review comment (only if non-empty)
+            DIFF_OUTPUT=$(git diff --stat)
+            if [ -n "$DIFF_OUTPUT" ]; then
+              echo "$DIFF_OUTPUT" > /tmp/lint-diff.txt
+            fi
           fi
 
       - name: Verify safe changes (security safeguard)
@@ -90,7 +94,12 @@ jobs:
           fi
 
       - name: Commit and push safe changes
-        if: steps.verify-changed-files.outputs.changed == 'true' && steps.check-loop.outputs.loop_detected == 'false' && steps.verify-safe.outputs.safe == 'true'
+        # SECURITY: Only auto-commit for same-repo PRs (not forks)
+        if: |
+          steps.verify-changed-files.outputs.changed == 'true' &&
+          steps.check-loop.outputs.loop_detected == 'false' &&
+          steps.verify-safe.outputs.safe == 'true' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -105,7 +114,18 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+
+            // Check if diff file exists and is non-empty
+            if (!fs.existsSync('/tmp/lint-diff.txt')) {
+              console.log('No diff file found, skipping comment');
+              return;
+            }
+
             const diff = fs.readFileSync('/tmp/lint-diff.txt', 'utf8');
+            if (!diff || diff.trim().length === 0) {
+              console.log('Diff is empty, skipping comment');
+              return;
+            }
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
