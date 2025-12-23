@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '@/lib/api';
+import { parseLocalDate } from '@/lib/date-utils';
 
 export interface Holiday {
   date: string;
@@ -87,7 +88,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   },
 
   isWorkingDay: (dateStr) => {
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     const dayOfWeek = date.getDay();
 
     // Weekend

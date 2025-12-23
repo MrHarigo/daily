@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
+import { getTodayLocal, formatLocalDate } from '@/lib/date-utils';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -62,11 +63,11 @@ export async function GET(request: NextRequest) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       if (isWorkingDay(d, holidays, dayOffs)) {
-        workingDays.push(d.toISOString().split('T')[0]);
+        workingDays.push(formatLocalDate(d));
       }
     }
 
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getTodayLocal();
 
     // Group completions by habit
     const completionsByHabit = new Map<string, typeof completions>();

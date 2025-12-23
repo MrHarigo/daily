@@ -1,23 +1,21 @@
 'use client';
 
+import { getTodayLocal, addDays } from '@/lib/date-utils';
+
 interface DateSelectorProps {
   selectedDate: string;
   onDateChange: (date: string) => void;
 }
 
 export function DateSelector({ selectedDate, onDateChange }: DateSelectorProps) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayLocal();
 
   const goToPrevDay = () => {
-    const date = new Date(selectedDate);
-    date.setDate(date.getDate() - 1);
-    onDateChange(date.toISOString().split('T')[0]);
+    onDateChange(addDays(selectedDate, -1));
   };
 
   const goToNextDay = () => {
-    const date = new Date(selectedDate);
-    date.setDate(date.getDate() + 1);
-    onDateChange(date.toISOString().split('T')[0]);
+    onDateChange(addDays(selectedDate, 1));
   };
 
   const goToToday = () => {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '@/lib/api';
+import { getTodayLocal } from '@/lib/date-utils';
 
 export type HabitType = 'boolean' | 'count' | 'time';
 
@@ -74,7 +75,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   error: null,
   completions: {},
   activeTimers: {},
-  selectedDate: new Date().toISOString().split('T')[0],
+  selectedDate: getTodayLocal(),
 
   // Computed getters
   getActiveHabits: () => {
