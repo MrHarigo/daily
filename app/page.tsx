@@ -8,6 +8,7 @@ import { Login } from '@/components/Login';
 import { Dashboard } from '@/components/Dashboard';
 import { Stats } from '@/components/Stats';
 import { Settings } from '@/components/Settings';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 type Tab = 'today' | 'stats' | 'settings';
 
@@ -80,7 +81,14 @@ export default function Home() {
   }
 
   if (!isAuthenticated) {
-    return <Login />;
+    return (
+      <ErrorBoundary
+        fallbackTitle="Login Error"
+        onReset={() => checkAuth()}
+      >
+        <Login />
+      </ErrorBoundary>
+    );
   }
 
   return (
@@ -129,9 +137,33 @@ export default function Home() {
 
       {/* Content */}
       <main className="max-w-5xl mx-auto px-4 lg:px-8 py-8">
-        {activeTab === 'today' && <Dashboard />}
-        {activeTab === 'stats' && <Stats />}
-        {activeTab === 'settings' && <Settings onLogout={logout} />}
+        {activeTab === 'today' && (
+          <ErrorBoundary
+            fallbackTitle="Dashboard Error"
+            onReset={() => fetchHabits()}
+          >
+            <Dashboard />
+          </ErrorBoundary>
+        )}
+        {activeTab === 'stats' && (
+          <ErrorBoundary
+            fallbackTitle="Stats Error"
+            onReset={() => fetchStats()}
+          >
+            <Stats />
+          </ErrorBoundary>
+        )}
+        {activeTab === 'settings' && (
+          <ErrorBoundary
+            fallbackTitle="Settings Error"
+            onReset={() => {
+              fetchHabits();
+              fetchDevices();
+            }}
+          >
+            <Settings onLogout={logout} />
+          </ErrorBoundary>
+        )}
       </main>
     </div>
   );
