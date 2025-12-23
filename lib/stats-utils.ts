@@ -2,6 +2,14 @@
  * Shared utilities for stats calculation
  */
 
+// In-memory cache for working days calculation
+// Key format: `${todayStr}-${userId}`
+const workingDaysCache = new Map<string, {
+  workingDays: string[];
+  holidays: Set<string>;
+  dayOffs: Set<string>;
+}>();
+
 /**
  * Determines if a given date is a working day
  * @param date The date to check
@@ -18,6 +26,77 @@ export function isWorkingDay(
   if (dayOfWeek === 0 || dayOfWeek === 6) return false;
   const dateStr = date.toISOString().split('T')[0];
   return !holidays.has(dateStr) && !dayOffs.has(dateStr);
+}
+
+/**
+ * Gets working days for the last 90 days with caching
+ * Caches the result per day per user to avoid redundant calculations
+ * @param userId The user ID for day-offs lookup
+ * @param queryFn Function to execute database queries
+ * @returns Object containing workingDays array, holidays, dayOffs sets, today date, and todayStr
+ */
+export async function getWorkingDaysWithCache(
+  userId: string,
+  queryFn: <T>(sql: string, params?: any[]) => Promise<T[]>
+): Promise<{
+  workingDays: string[];
+  holidays: Set<string>;
+  dayOffs: Set<string>;
+  today: Date;
+  todayStr: string;
+}> {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const cacheKey = `${todayStr}-${userId}`;
+
+  // Check cache
+  const cached = workingDaysCache.get(cacheKey);
+  if (cached) {
+    return {
+      ...cached,
+      today,
+      todayStr,
+    };
+  }
+
+  // Fetch holidays and day-offs
+  const holidaysData = await queryFn<{ date: string }>(
+    `SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`
+  );
+  const dayOffsData = await queryFn<{ date: string }>(
+    `SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs WHERE user_id = $1`,
+    [userId]
+  );
+
+  const holidays = new Set(holidaysData.map(h => h.date));
+  const dayOffs = new Set(dayOffsData.map(d => d.date));
+
+  // Calculate working days for last 90 days
+  const workingDays: string[] = [];
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    if (isWorkingDay(d, holidays, dayOffs)) {
+      workingDays.push(d.toISOString().split('T')[0]);
+    }
+  }
+
+  // Cache the result
+  const result = { workingDays, holidays, dayOffs };
+  workingDaysCache.set(cacheKey, result);
+
+  // Clean up old cache entries (keep only today's entries)
+  for (const key of workingDaysCache.keys()) {
+    if (!key.startsWith(todayStr)) {
+      workingDaysCache.delete(key);
+    }
+  }
+
+  return {
+    ...result,
+    today,
+    todayStr,
+  };
 }
 
 /**

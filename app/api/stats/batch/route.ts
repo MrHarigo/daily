@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
+import { getWorkingDaysWithCache, calculateStreak } from '@/lib/stats-utils';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -45,28 +45,8 @@ export async function GET(request: NextRequest) {
       [habitIds]
     );
 
-    // Fetch holidays and day-offs once (shared for all habits)
-    const holidaysData = await query<{ date: string }>(`SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`);
-    const dayOffsData = await query<{ date: string }>(
-      `SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs WHERE user_id = $1`,
-      [auth.userId]
-    );
-
-    const holidays = new Set(holidaysData.map(h => h.date));
-    const dayOffs = new Set(dayOffsData.map(d => d.date));
-
-    // Calculate working days once (shared for all habits)
-    const today = new Date();
-    const workingDays: string[] = [];
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      if (isWorkingDay(d, holidays, dayOffs)) {
-        workingDays.push(d.toISOString().split('T')[0]);
-      }
-    }
-
-    const todayStr = today.toISOString().split('T')[0];
+    // Get working days with caching (shared for all habits)
+    const { workingDays, todayStr } = await getWorkingDaysWithCache(auth.userId, query);
 
     // Group completions by habit
     const completionsByHabit = new Map<string, typeof completions>();

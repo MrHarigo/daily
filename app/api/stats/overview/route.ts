@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
+import { getWorkingDaysWithCache, calculateStreak } from '@/lib/stats-utils';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -15,35 +15,17 @@ export async function GET() {
     );
     
     const completions = await query<{ habit_id: string; date: string; completed: boolean }>(
-      `SELECT hc.habit_id, to_char(hc.date, 'YYYY-MM-DD') as date, hc.completed 
+      `SELECT hc.habit_id, to_char(hc.date, 'YYYY-MM-DD') as date, hc.completed
        FROM habit_completions hc
        INNER JOIN habits h ON hc.habit_id = h.id
        WHERE h.user_id = $1`,
       [auth.userId]
     );
-    
-    const holidaysData = await query<{ date: string }>(`SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`);
-    const dayOffsData = await query<{ date: string }>(
-      `SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs WHERE user_id = $1`,
-      [auth.userId]
-    );
 
-    const holidays = new Set(holidaysData.map(h => h.date));
-    const dayOffs = new Set(dayOffsData.map(d => d.date));
-
-    // Get working days for last 90 days
-    const today = new Date();
-    const workingDays: string[] = [];
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      if (isWorkingDay(d, holidays, dayOffs)) {
-        workingDays.push(d.toISOString().split('T')[0]);
-      }
-    }
+    // Get working days with caching
+    const { workingDays, todayStr } = await getWorkingDaysWithCache(auth.userId, query);
 
     // Find best current streak across all habits
-    const todayStr = today.toISOString().split('T')[0];
     let bestStreak = 0;
     let bestStreakCompletedToday = false;
 

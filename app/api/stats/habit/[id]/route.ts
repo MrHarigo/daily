@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
+import { getWorkingDaysWithCache, calculateStreak } from '@/lib/stats-utils';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -20,32 +20,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `SELECT to_char(date, 'YYYY-MM-DD') as date, value, completed FROM habit_completions WHERE habit_id = $1`,
       [id]
     );
-    const holidaysData = await query<{ date: string }>(`SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`);
-    const dayOffsData = await query<{ date: string }>(
-      `SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs WHERE user_id = $1`,
-      [auth.userId]
-    );
-
-    const holidays = new Set(holidaysData.map(h => h.date));
-    const dayOffs = new Set(dayOffsData.map(d => d.date));
 
     const createdAt = habit.created_at instanceof Date
       ? habit.created_at.toISOString().split('T')[0]
       : String(habit.created_at).split('T')[0];
 
-    // Get working days
-    const today = new Date();
-    const workingDays: string[] = [];
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      if (isWorkingDay(d, holidays, dayOffs)) {
-        workingDays.push(d.toISOString().split('T')[0]);
-      }
-    }
+    // Get working days with caching
+    const { workingDays, todayStr } = await getWorkingDaysWithCache(auth.userId, query);
 
     // Calculate streak
-    const todayStr = today.toISOString().split('T')[0];
     const streak = calculateStreak(
       completions.map(c => ({ date: c.date, completed: c.completed })),
       workingDays,
