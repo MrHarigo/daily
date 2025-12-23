@@ -40,6 +40,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ completion, totalSeconds });
   } catch (error) {
     console.error('Timer stop error:', error);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to stop timer' }, { status: 500 });
   }
 }
