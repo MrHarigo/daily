@@ -12,10 +12,12 @@ interface SettingsProps {
 
 export function Settings({ onLogout }: SettingsProps) {
   const {
-    allHabits,
-    allHabitsLoading,
-    allHabitsError,
-    fetchAllHabits,
+    getActiveHabits,
+    getPausedHabits,
+    getArchivedHabits,
+    isLoading,
+    error,
+    fetchHabits,
     updateHabit,
     archiveHabit,
     unarchiveHabit,
@@ -37,27 +39,25 @@ export function Settings({ onLogout }: SettingsProps) {
 
   useEffect(() => {
     // Always fetch fresh data, but show cached data while loading
-    fetchAllHabits();
+    fetchHabits();
     fetchDevices();
     fetchDayOffs();
-  }, [fetchAllHabits, fetchDevices, fetchDayOffs]);
+  }, [fetchHabits, fetchDevices, fetchDayOffs]);
 
-  // Split habits into sections
-  const activeHabits = allHabits.filter(h => !h.paused_at && !h.archived_at);
-  const pausedHabits = allHabits.filter(h => h.paused_at && !h.archived_at);
-  const archivedHabits = allHabits.filter(h => h.archived_at);
+  // Get habits from computed getters
+  const activeHabits = getActiveHabits();
+  const pausedHabits = getPausedHabits();
+  const archivedHabits = getArchivedHabits();
 
   const handleArchiveHabit = async (habit: Habit) => {
     if (confirm(`Archive "${habit.name}"? You can restore it later.`)) {
       await archiveHabit(habit.id);
-      await fetchAllHabits();
     }
   };
 
   const handleDeleteHabit = async (habit: Habit) => {
     if (confirm(`Permanently delete "${habit.name}"? This will remove all data and cannot be undone!`)) {
       await deleteHabit(habit.id);
-      await fetchAllHabits();
     }
   };
 
@@ -67,7 +67,6 @@ export function Settings({ onLogout }: SettingsProps) {
     } else {
       await pauseHabit(habit.id);
     }
-    await fetchAllHabits();
   };
 
   const handleUnarchiveHabit = async (habit: Habit) => {
@@ -136,21 +135,21 @@ export function Settings({ onLogout }: SettingsProps) {
           <button onClick={() => setShowAddModal(true)} className="btn btn-primary text-sm">+ Add Habit</button>
         </div>
 
-        {allHabitsError && (
+        {error && (
           <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-4 mb-4">
             <p className="text-red-400 font-medium mb-2">Failed to load habits</p>
-            <p className="text-sm text-gray-400 mb-3">{allHabitsError}</p>
-            <button onClick={fetchAllHabits} className="btn btn-secondary btn-sm">
+            <p className="text-sm text-gray-400 mb-3">{error}</p>
+            <button onClick={fetchHabits} className="btn btn-secondary btn-sm">
               Retry
             </button>
           </div>
         )}
 
-        {allHabitsLoading && allHabits.length === 0 ? (
+        {isLoading && activeHabits.length === 0 && pausedHabits.length === 0 && archivedHabits.length === 0 ? (
           <div className="flex justify-center py-8">
             <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : allHabits.length === 0 ? (
+        ) : activeHabits.length === 0 && pausedHabits.length === 0 && archivedHabits.length === 0 ? (
           <div className="card text-center py-8">
             <p className="text-gray-400">No habits yet</p>
           </div>
@@ -168,7 +167,6 @@ export function Settings({ onLogout }: SettingsProps) {
                     onSave={async (updates) => {
                       await updateHabit(habit.id, updates);
                       setEditingHabit(null);
-                      fetchAllHabits();
                     }}
                     onCancel={() => setEditingHabit(null)}
                     onPause={() => handlePauseHabit(habit)}
@@ -195,7 +193,6 @@ export function Settings({ onLogout }: SettingsProps) {
                       onSave={async (updates) => {
                         await updateHabit(habit.id, updates);
                         setEditingHabit(null);
-                        fetchAllHabits();
                       }}
                       onCancel={() => setEditingHabit(null)}
                       onPause={() => handlePauseHabit(habit)}
@@ -390,7 +387,7 @@ export function Settings({ onLogout }: SettingsProps) {
         </div>
       </section>
 
-      <AddHabitModal isOpen={showAddModal} onClose={() => { setShowAddModal(false); fetchAllHabits(); }} />
+      <AddHabitModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
     </div>
   );
 }
