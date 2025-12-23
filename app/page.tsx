@@ -30,6 +30,7 @@ export default function Home() {
 
     // Only reset tab when transitioning from logged out to logged in
     if (!wasAuthenticated && isAuthenticated) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTab('today');
     }
   }, [isAuthenticated]);

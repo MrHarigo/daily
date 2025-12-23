@@ -21,6 +21,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(habit);
   } catch (error) {
+    console.error('Update habit error:', error);
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
 }
@@ -43,9 +44,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await query('DELETE FROM habit_completions WHERE habit_id = $1', [id]);
     await query('DELETE FROM active_timers WHERE habit_id = $1', [id]);
     await query('DELETE FROM habits WHERE id = $1', [id]);
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Delete habit error:', error);
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }

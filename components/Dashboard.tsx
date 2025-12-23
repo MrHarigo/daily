@@ -25,6 +25,7 @@ export function Dashboard() {
 
   // Clear optimistic state when server completions update
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOptimisticCompletions({});
   }, [completions]);
 
