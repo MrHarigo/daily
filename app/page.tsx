@@ -157,8 +157,8 @@ export default function Home() {
           <ErrorBoundary
             fallbackTitle="Settings Error"
             onReset={() => {
-              fetchHabits()
-              fetchDevices()
+              fetchHabits();
+              fetchDevices();
             }}
           >
             <Settings onLogout={logout} />
