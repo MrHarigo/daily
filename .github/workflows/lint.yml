@@ -1,8 +1,6 @@
 name: Lint
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -17,7 +15,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          # SECURITY: Use head SHA instead of head_ref to prevent write access to fork PRs
+          ref: ${{ github.event.pull_request.head.sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 2  # Fetch last 2 commits to check triggering commit
 
@@ -38,7 +37,8 @@ jobs:
           # Check if actor is github-actions bot
           ACTOR="${{ github.actor }}"
 
-          if [[ "$RECENT_COMMIT" == "style: auto-fix lint issues" ]] || [[ "$ACTOR" == "github-actions[bot]" ]]; then
+          # AND condition: must be BOTH auto-fix commit AND bot actor to detect loop
+          if [[ "$RECENT_COMMIT" == "style: auto-fix lint issues" ]] && [[ "$ACTOR" == "github-actions[bot]" ]]; then
             echo "loop_detected=true" >> $GITHUB_OUTPUT
             echo "⚠️ Auto-fix loop detected - skipping to prevent infinite commits"
           else
@@ -99,7 +99,8 @@ jobs:
           git push
 
       - name: Post review comment for unsafe changes
-        if: steps.verify-changed-files.outputs.changed == 'true' && steps.verify-safe.outputs.safe == 'false'
+        # Only post comments on PRs (not on push events where context.issue.number is undefined)
+        if: github.event_name == 'pull_request' && steps.verify-changed-files.outputs.changed == 'true' && steps.verify-safe.outputs.safe == 'false'
         uses: actions/github-script@v7
         with:
           script: |
