@@ -37,6 +37,9 @@ export function Settings({ onLogout }: SettingsProps) {
   const [isAddingDevice, setIsAddingDevice] = useState(false);
   const [deviceError, setDeviceError] = useState<string | null>(null);
 
+  // Habit operations loading state: { habitId: operation }
+  const [loadingOperations, setLoadingOperations] = useState<Record<string, string>>({});
+
   useEffect(() => {
     // Always fetch fresh data, but show cached data while loading
     fetchHabits();
@@ -51,26 +54,67 @@ export function Settings({ onLogout }: SettingsProps) {
 
   const handleArchiveHabit = async (habit: Habit) => {
     if (confirm(`Archive "${habit.name}"? You can restore it later.`)) {
-      await archiveHabit(habit.id);
+      setLoadingOperations((prev) => ({ ...prev, [habit.id]: 'archive' }));
+      try {
+        await archiveHabit(habit.id);
+      } catch (error) {
+        console.error('Failed to archive habit:', error);
+      } finally {
+        setLoadingOperations((prev) => {
+          const { [habit.id]: _, ...rest } = prev;
+          return rest;
+        });
+      }
     }
   };
 
   const handleDeleteHabit = async (habit: Habit) => {
     if (confirm(`Permanently delete "${habit.name}"? This will remove all data and cannot be undone!`)) {
-      await deleteHabit(habit.id);
+      setLoadingOperations((prev) => ({ ...prev, [habit.id]: 'delete' }));
+      try {
+        await deleteHabit(habit.id);
+      } catch (error) {
+        console.error('Failed to delete habit:', error);
+      } finally {
+        setLoadingOperations((prev) => {
+          const { [habit.id]: _, ...rest } = prev;
+          return rest;
+        });
+      }
     }
   };
 
   const handlePauseHabit = async (habit: Habit) => {
-    if (habit.paused_at) {
-      await unpauseHabit(habit.id);
-    } else {
-      await pauseHabit(habit.id);
+    const operation = habit.paused_at ? 'unpause' : 'pause';
+    setLoadingOperations((prev) => ({ ...prev, [habit.id]: operation }));
+    try {
+      if (habit.paused_at) {
+        await unpauseHabit(habit.id);
+      } else {
+        await pauseHabit(habit.id);
+      }
+    } catch (error) {
+      console.error(`Failed to ${operation} habit:`, error);
+    } finally {
+      setLoadingOperations((prev) => {
+        const { [habit.id]: _, ...rest } = prev;
+        return rest;
+      });
     }
   };
 
   const handleUnarchiveHabit = async (habit: Habit) => {
-    await unarchiveHabit(habit.id);
+    setLoadingOperations((prev) => ({ ...prev, [habit.id]: 'unarchive' }));
+    try {
+      await unarchiveHabit(habit.id);
+    } catch (error) {
+      console.error('Failed to unarchive habit:', error);
+    } finally {
+      setLoadingOperations((prev) => {
+        const { [habit.id]: _, ...rest } = prev;
+        return rest;
+      });
+    }
   };
 
   const handleAddDayOff = async (e: React.FormEvent) => {
@@ -172,6 +216,7 @@ export function Settings({ onLogout }: SettingsProps) {
                     onPause={() => handlePauseHabit(habit)}
                     onArchive={() => handleArchiveHabit(habit)}
                     onDelete={() => handleDeleteHabit(habit)}
+                    loadingOperation={loadingOperations[habit.id]}
                   />
                 ))}
               </div>
@@ -199,6 +244,7 @@ export function Settings({ onLogout }: SettingsProps) {
                       onArchive={() => handleArchiveHabit(habit)}
                       onDelete={() => handleDeleteHabit(habit)}
                       isPaused
+                      loadingOperation={loadingOperations[habit.id]}
                     />
                   ))}
                 </div>
@@ -212,27 +258,52 @@ export function Settings({ onLogout }: SettingsProps) {
                   Archived ({archivedHabits.length})
                 </h3>
                 <div className="space-y-2">
-                  {archivedHabits.map((habit) => (
-                    <div key={habit.id} className="card opacity-60">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium flex items-center gap-2">
-                            {habit.name}
-                            <span className="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded">Archived</span>
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            {habit.type === 'boolean' && 'Check off'}
-                            {habit.type === 'count' && `Count • Goal: ${habit.target_value || '–'}`}
-                            {habit.type === 'time' && `Timer • Goal: ${habit.target_value || '–'} min`}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => handleUnarchiveHabit(habit)} className="btn btn-ghost text-sm text-accent">Restore</button>
-                          <button onClick={() => handleDeleteHabit(habit)} className="btn btn-ghost text-sm text-danger">Delete</button>
+                  {archivedHabits.map((habit) => {
+                    const loading = loadingOperations[habit.id];
+                    return (
+                      <div key={habit.id} className="card opacity-60">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-medium flex items-center gap-2">
+                              {habit.name}
+                              <span className="text-xs bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded">Archived</span>
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              {habit.type === 'boolean' && 'Check off'}
+                              {habit.type === 'count' && `Count • Goal: ${habit.target_value || '–'}`}
+                              {habit.type === 'time' && `Timer • Goal: ${habit.target_value || '–'} min`}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleUnarchiveHabit(habit)}
+                              disabled={!!loading}
+                              className="btn btn-ghost text-sm text-accent"
+                            >
+                              {loading === 'unarchive' ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                  Restoring...
+                                </span>
+                              ) : 'Restore'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteHabit(habit)}
+                              disabled={!!loading}
+                              className="btn btn-ghost text-sm text-danger"
+                            >
+                              {loading === 'delete' ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                  Deleting...
+                                </span>
+                              ) : 'Delete'}
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -402,9 +473,10 @@ interface HabitSettingsCardProps {
   onArchive: () => void;
   onDelete: () => void;
   isPaused?: boolean;
+  loadingOperation?: string;
 }
 
-function HabitSettingsCard({ habit, editingHabit, onEdit, onSave, onCancel, onPause, onArchive, onDelete, isPaused }: HabitSettingsCardProps) {
+function HabitSettingsCard({ habit, editingHabit, onEdit, onSave, onCancel, onPause, onArchive, onDelete, isPaused, loadingOperation }: HabitSettingsCardProps) {
   if (editingHabit?.id === habit.id) {
     return (
       <div className="card">
@@ -430,13 +502,51 @@ function HabitSettingsCard({ habit, editingHabit, onEdit, onSave, onCancel, onPa
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={onPause}
-            className={`btn btn-ghost text-sm ${habit.paused_at ? 'text-accent' : 'text-warning'}`}>
-            {habit.paused_at ? 'Resume' : 'Pause'}
+          <button
+            onClick={onPause}
+            disabled={!!loadingOperation}
+            className={`btn btn-ghost text-sm ${habit.paused_at ? 'text-accent' : 'text-warning'}`}
+          >
+            {loadingOperation === 'pause' || loadingOperation === 'unpause' ? (
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                {loadingOperation === 'unpause' ? 'Resuming...' : 'Pausing...'}
+              </span>
+            ) : (
+              habit.paused_at ? 'Resume' : 'Pause'
+            )}
           </button>
-          <button onClick={() => onEdit(habit)} className="btn btn-ghost text-sm">Edit</button>
-          <button onClick={onArchive} className="btn btn-ghost text-sm text-gray-400">Archive</button>
-          <button onClick={onDelete} className="btn btn-ghost text-sm text-danger">Delete</button>
+          <button
+            onClick={() => onEdit(habit)}
+            disabled={!!loadingOperation}
+            className="btn btn-ghost text-sm"
+          >
+            Edit
+          </button>
+          <button
+            onClick={onArchive}
+            disabled={!!loadingOperation}
+            className="btn btn-ghost text-sm text-gray-400"
+          >
+            {loadingOperation === 'archive' ? (
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Archiving...
+              </span>
+            ) : 'Archive'}
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={!!loadingOperation}
+            className="btn btn-ghost text-sm text-danger"
+          >
+            {loadingOperation === 'delete' ? (
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Deleting...
+              </span>
+            ) : 'Delete'}
+          </button>
         </div>
       </div>
     </div>
