@@ -19,12 +19,18 @@ export default function Home() {
   const { fetchHabits } = useHabitStore();
   const { fetchStats } = useStatsStore();
   const [activeTab, setActiveTab] = useState<Tab>('today');
+  const activeTabRef = useRef<Tab>(activeTab);
   const lastRefreshRef = useRef<number>(0);
   const prevAuthenticatedRef = useRef<boolean>(false);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Keep activeTabRef in sync with activeTab
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   // Reset to Today tab only when user logs in (false -> true transition)
   useEffect(() => {
@@ -41,7 +47,7 @@ export default function Home() {
   const refetchCurrentTab = useCallback(() => {
     if (!isAuthenticated) return;
 
-    switch (activeTab) {
+    switch (activeTabRef.current) {
       case 'today':
         fetchHabits();
         break;
@@ -53,7 +59,7 @@ export default function Home() {
         fetchDevices();
         break;
     }
-  }, [activeTab, isAuthenticated, fetchHabits, fetchStats, fetchDevices]);
+  }, [isAuthenticated, fetchHabits, fetchStats, fetchDevices]);
 
   // Refetch on visibility change (user returns from idle/background)
   useEffect(() => {
