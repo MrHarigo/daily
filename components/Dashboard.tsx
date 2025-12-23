@@ -16,6 +16,7 @@ export function Dashboard() {
 
   // Optimistic completions for instant filtering (before server responds)
   const [optimisticCompletions, setOptimisticCompletions] = useState<Record<string, OptimisticCompletion>>({});
+  const [prevCompletions, setPrevCompletions] = useState(completions);
 
   // Callback for HabitCard to report optimistic updates
   const onOptimisticUpdate = useCallback((habitId: string, completed: boolean, value: number) => {
@@ -23,11 +24,11 @@ export function Dashboard() {
     setOptimisticCompletions(prev => ({ ...prev, [key]: { completed, value } }));
   }, [selectedDate]);
 
-  // Clear optimistic state when server completions update
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+  // Clear optimistic state when server completions update (React-approved pattern)
+  if (prevCompletions !== completions) {
     setOptimisticCompletions({});
-  }, [completions]);
+    setPrevCompletions(completions);
+  }
 
   useEffect(() => {
     const year = new Date().getFullYear();

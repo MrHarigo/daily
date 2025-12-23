@@ -17,23 +17,20 @@ export default function Home() {
   const { fetchStats } = useStatsStore();
   const [activeTab, setActiveTab] = useState<Tab>('today');
   const lastRefreshRef = useRef<number>(0);
-  const prevAuthenticatedRef = useRef<boolean>(false);
+  const [prevAuthenticated, setPrevAuthenticated] = useState(false);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
   // Reset to Today tab only when user logs in (false -> true transition)
-  useEffect(() => {
-    const wasAuthenticated = prevAuthenticatedRef.current;
-    prevAuthenticatedRef.current = isAuthenticated;
-
-    // Only reset tab when transitioning from logged out to logged in
-    if (!wasAuthenticated && isAuthenticated) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveTab('today');
-    }
-  }, [isAuthenticated]);
+  // Using state for previous value (React-approved pattern for prop sync)
+  if (prevAuthenticated === false && isAuthenticated === true && activeTab !== 'today') {
+    setActiveTab('today');
+  }
+  if (prevAuthenticated !== isAuthenticated) {
+    setPrevAuthenticated(isAuthenticated);
+  }
 
   // Refetch data for the current tab
   const refetchCurrentTab = useCallback(() => {

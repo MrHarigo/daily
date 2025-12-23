@@ -20,15 +20,17 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
 
   // Local optimistic timer state (immediate updates, no startTransition delay)
   const [localTimer, setLocalTimer] = useState<ActiveTimer | null>(null);
-  const isLocalOverride = useRef(false);
+  const [prevTimer, setPrevTimer] = useState(timer);
+  const [isLocalOverride, setIsLocalOverride] = useState(false);
 
-  // Sync local timer with server timer when server responds
-  useEffect(() => {
-    if (!isLocalOverride.current) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+  // Sync local timer with server timer when server responds (React-approved pattern)
+  // Only sync when not in local override mode
+  if (prevTimer !== timer) {
+    if (!isLocalOverride) {
       setLocalTimer(timer ?? null);
     }
-  }, [timer]);
+    setPrevTimer(timer);
+  }
 
   // Use local timer for display (immediate), falls back to server timer
   const optimisticTimer = localTimer;
@@ -103,7 +105,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
     setDisplayTime(accumulatedSeconds);
 
     // Update timer state immediately (no startTransition delay)
-    isLocalOverride.current = true;
+    setIsLocalOverride(true);
     setLocalTimer({
       habit_id: habit.id,
       date,
@@ -115,14 +117,14 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
 
     // Sync with server
     await startTimer(habit.id, date);
-    isLocalOverride.current = false;
+    setIsLocalOverride(false);
   };
 
   const handlePauseTimer = async () => {
     if (!optimisticTimer) return;
 
     // Update immediately
-    isLocalOverride.current = true;
+    setIsLocalOverride(true);
     setLocalTimer({
       ...optimisticTimer,
       is_running: false,
@@ -131,7 +133,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
 
     // Sync with server
     await pauseTimer(habit.id);
-    isLocalOverride.current = false;
+    setIsLocalOverride(false);
   };
 
   const handleStopTimer = async () => {
@@ -142,7 +144,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
     setStoppedTime(displayTime);
 
     // Update immediately
-    isLocalOverride.current = true;
+    setIsLocalOverride(true);
     setLocalTimer(null);
 
     // Notify parent for instant filtering (before server call)
@@ -160,17 +162,17 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
 
     // Sync with server
     await stopTimer(habit.id);
-    isLocalOverride.current = false;
+    setIsLocalOverride(false);
   };
 
   const handleResetTimer = async () => {
     // Update immediately
-    isLocalOverride.current = true;
+    setIsLocalOverride(true);
     setLocalTimer(null);
 
     // Sync with server
     await resetTimer(habit.id);
-    isLocalOverride.current = false;
+    setIsLocalOverride(false);
   };
 
   return (

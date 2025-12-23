@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useOptimistic, useTransition, useEffect } from 'react';
+import { useState, useRef, useOptimistic, useTransition } from 'react';
 import confetti from 'canvas-confetti';
 import { Habit, HabitCompletion, useHabitStore } from '@/stores/habitStore';
 import { Timer } from './Timer';
@@ -50,17 +50,18 @@ export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdat
   // Local optimistic state for count (simpler than useOptimistic for debouncing)
   const serverValue = completion?.value ?? 0;
   const [localValue, setLocalValue] = useState(serverValue);
-  const pendingDeltaRef = useRef(0);
+  const [prevServerValue, setPrevServerValue] = useState(serverValue);
+  const [pendingDelta, setPendingDelta] = useState(0);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync local value when server value changes (after debounced request completes)
-  useEffect(() => {
-    // Only sync if we're not in the middle of local edits
-    if (pendingDeltaRef.current === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+  // Sync local value when server value changes (React-approved pattern)
+  // Only sync if we're not in the middle of local edits (pendingDelta === 0)
+  if (prevServerValue !== serverValue) {
+    if (pendingDelta === 0) {
       setLocalValue(serverValue);
     }
-  }, [serverValue]);
+    setPrevServerValue(serverValue);
+  }
 
   // Optimistic state for toggle (boolean habits)
   const [optimisticCompletion, setOptimisticCompletion] = useOptimistic(
@@ -128,7 +129,8 @@ export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdat
     onOptimisticUpdate?.(habit.id, willBeCompleted, newValue);
 
     // Accumulate the delta for server
-    pendingDeltaRef.current += delta;
+    const newPendingDelta = pendingDelta + delta;
+    setPendingDelta(newPendingDelta);
 
     // Clear existing debounce timer
     if (debounceTimerRef.current) {
@@ -137,11 +139,9 @@ export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdat
 
     // Set new debounce timer - send accumulated delta after 300ms idle
     debounceTimerRef.current = setTimeout(async () => {
-      const totalDelta = pendingDeltaRef.current;
-      pendingDeltaRef.current = 0; // Reset before async call
-
-      if (totalDelta !== 0) {
-        await incrementCount(habit.id, date, totalDelta);
+      if (newPendingDelta !== 0) {
+        await incrementCount(habit.id, date, newPendingDelta);
+        setPendingDelta(0); // Reset after server call
       }
     }, 300);
   };

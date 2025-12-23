@@ -19,6 +19,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 2  # Fetch last 2 commits to check triggering commit
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,8 +33,12 @@ jobs:
       - name: Check for auto-fix loops
         id: check-loop
         run: |
+          # Check if last commit was an auto-fix
           RECENT_COMMIT=$(git log -1 --pretty=%B)
-          if [[ "$RECENT_COMMIT" == "style: auto-fix lint issues" ]]; then
+          # Check if actor is github-actions bot
+          ACTOR="${{ github.actor }}"
+
+          if [[ "$RECENT_COMMIT" == "style: auto-fix lint issues" ]] || [[ "$ACTOR" == "github-actions[bot]" ]]; then
             echo "loop_detected=true" >> $GITHUB_OUTPUT
             echo "⚠️ Auto-fix loop detected - skipping to prevent infinite commits"
           else
@@ -65,16 +70,57 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
+            # Store diff summary for review comment
+            git diff --stat > /tmp/lint-diff.txt
           fi
 
-      - name: Commit and push changes
+      - name: Verify safe changes (security safeguard)
         if: steps.verify-changed-files.outputs.changed == 'true' && steps.check-loop.outputs.loop_detected == 'false'
+        id: verify-safe
+        run: |
+          # Check that only safe file types were modified
+          CHANGED_FILES=$(git diff --name-only)
+          UNSAFE_PATTERNS="package.json|package-lock.json|\.yml|\.yaml|\.sh|Dockerfile|\.env"
+
+          if echo "$CHANGED_FILES" | grep -E "$UNSAFE_PATTERNS"; then
+            echo "safe=false" >> $GITHUB_OUTPUT
+            echo "⚠️ SECURITY: Detected changes to sensitive files - will post review comment instead of auto-committing"
+          else
+            echo "safe=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push safe changes
+        if: steps.verify-changed-files.outputs.changed == 'true' && steps.check-loop.outputs.loop_detected == 'false' && steps.verify-safe.outputs.safe == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -A
           git commit -m "style: auto-fix lint issues"
           git push
+
+      - name: Post review comment for unsafe changes
+        if: steps.verify-changed-files.outputs.changed == 'true' && steps.verify-safe.outputs.safe == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const diff = fs.readFileSync('/tmp/lint-diff.txt', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ⚠️ Lint Auto-Fix Blocked (Security Safeguard)
+
+            ESLint attempted to fix issues but detected changes to sensitive files.
+            Please review and commit these changes manually:
+
+            \`\`\`
+            ${diff}
+            \`\`\`
+
+            Run \`npm run lint:fix\` locally to apply these fixes.`
+            })
 
       - name: Run ESLint check and report issues
         run: npm run lint || echo "⚠️ Lint issues found - see output above"
