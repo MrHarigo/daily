@@ -71,6 +71,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Stats overview error:', error);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch overview stats' }, { status: 500 });
   }
 }

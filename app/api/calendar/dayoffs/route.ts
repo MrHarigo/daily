@@ -12,43 +12,46 @@ export async function GET() {
       [auth.userId]
     );
     return NextResponse.json(dayoffs);
-  } catch {
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+  } catch (error) {
+    console.error('Fetch day-offs error:', error);
+    return NextResponse.json({ error: 'Failed to fetch day-offs' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if ('error' in auth) return auth.error;
-  
+
   try {
     const { date, reason } = await request.json();
     if (!date) return NextResponse.json({ error: 'Date required' }, { status: 400 });
-    
+
     const dayoff = await queryOne(
-      `INSERT INTO day_offs (user_id, date, reason) VALUES ($1, $2, $3) 
+      `INSERT INTO day_offs (user_id, date, reason) VALUES ($1, $2, $3)
        ON CONFLICT (user_id, date) DO UPDATE SET reason = $3
        RETURNING to_char(date, 'YYYY-MM-DD') as date, reason`,
       [auth.userId, date, reason || null]
     );
     return NextResponse.json(dayoff);
-  } catch {
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+  } catch (error) {
+    console.error('Add day-off error:', error);
+    return NextResponse.json({ error: 'Failed to add day-off' }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest) {
   const auth = await requireAuth();
   if ('error' in auth) return auth.error;
-  
+
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     if (!date) return NextResponse.json({ error: 'Date required' }, { status: 400 });
-    
+
     await query('DELETE FROM day_offs WHERE user_id = $1 AND date = $2', [auth.userId, date]);
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+  } catch (error) {
+    console.error('Delete day-off error:', error);
+    return NextResponse.json({ error: 'Failed to delete day-off' }, { status: 500 });
   }
 }

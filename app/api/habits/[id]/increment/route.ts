@@ -28,6 +28,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json(completion);
   } catch (error) {
     console.error('Increment error:', error);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to increment habit' }, { status: 500 });
   }
 }
