@@ -13,7 +13,7 @@ type Tab = 'today' | 'stats' | 'settings';
 
 export default function Home() {
   const { isAuthenticated, isLoading, checkAuth, logout, fetchDevices } = useAuthStore();
-  const { fetchHabits, fetchAllHabits } = useHabitStore();
+  const { fetchHabits } = useHabitStore();
   const { fetchStats } = useStatsStore();
   const [activeTab, setActiveTab] = useState<Tab>('today');
   const lastRefreshRef = useRef<number>(0);
@@ -46,11 +46,11 @@ export default function Home() {
         fetchStats();
         break;
       case 'settings':
-        fetchAllHabits();
+        fetchHabits();
         fetchDevices();
         break;
     }
-  }, [activeTab, isAuthenticated, fetchHabits, fetchStats, fetchAllHabits, fetchDevices]);
+  }, [activeTab, isAuthenticated, fetchHabits, fetchStats, fetchDevices]);
 
   // Refetch on visibility change (user returns from idle/background)
   useEffect(() => {

@@ -10,7 +10,7 @@ import { DateSelector } from '@/components/DateSelector';
 type OptimisticCompletion = { completed: boolean; value: number };
 
 export function Dashboard() {
-  const { habits, completions, selectedDate, setSelectedDate, fetchHabits, fetchCompletions, isLoading } = useHabitStore();
+  const { getActiveHabits, completions, selectedDate, setSelectedDate, fetchHabits, fetchCompletions, isLoading } = useHabitStore();
   const { fetchHolidays, fetchDayOffs, isWorkingDay } = useCalendarStore();
   const [showDone, setShowDone] = useState(false);
 
@@ -48,7 +48,8 @@ export function Dashboard() {
   const isToday = selectedDate === new Date().toISOString().split('T')[0];
   const isWorkDay = isWorkingDay(selectedDate);
 
-  const activeHabits = habits.filter((h) => h.created_at <= selectedDate && !h.paused_at);
+  const habits = getActiveHabits();
+  const activeHabits = habits.filter((h) => h.created_at <= selectedDate);
 
   const getCompletion = (habitId: string) => {
     const key = `${habitId}-${selectedDate}`;

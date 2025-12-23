@@ -31,20 +31,21 @@ export interface ActiveTimer {
 }
 
 interface HabitState {
-  habits: Habit[];
-  allHabits: Habit[]; // includes paused and archived
-  allHabitsLoading: boolean;
-  allHabitsError: string | null;
-  completions: Record<string, HabitCompletion>; // keyed by `${habit_id}-${date}`
-  activeTimers: Record<string, ActiveTimer>; // keyed by habit_id
+  allHabits: Habit[]; // Single source of truth for all habits
   isLoading: boolean;
   error: string | null;
+  completions: Record<string, HabitCompletion>; // keyed by `${habit_id}-${date}`
+  activeTimers: Record<string, ActiveTimer>; // keyed by habit_id
   selectedDate: string;
+
+  // Computed getters
+  getActiveHabits: () => Habit[];
+  getPausedHabits: () => Habit[];
+  getArchivedHabits: () => Habit[];
 
   // Actions
   setSelectedDate: (date: string) => void;
   fetchHabits: () => Promise<void>;
-  fetchAllHabits: () => Promise<void>;
   fetchCompletions: (startDate: string, endDate: string) => Promise<void>;
   createHabit: (name: string, type: HabitType, targetValue?: number) => Promise<void>;
   updateHabit: (id: string, updates: Partial<Habit>) => Promise<void>;
@@ -68,15 +69,28 @@ interface HabitState {
 const getCompletionKey = (habitId: string, date: string) => `${habitId}-${date}`;
 
 export const useHabitStore = create<HabitState>((set, get) => ({
-  habits: [],
   allHabits: [],
-  allHabitsLoading: false,
-  allHabitsError: null,
-  completions: {},
-  activeTimers: {},
   isLoading: false,
   error: null,
+  completions: {},
+  activeTimers: {},
   selectedDate: new Date().toISOString().split('T')[0],
+
+  // Computed getters
+  getActiveHabits: () => {
+    const { allHabits } = get();
+    return allHabits.filter(h => !h.paused_at && !h.archived_at);
+  },
+
+  getPausedHabits: () => {
+    const { allHabits } = get();
+    return allHabits.filter(h => h.paused_at && !h.archived_at);
+  },
+
+  getArchivedHabits: () => {
+    const { allHabits } = get();
+    return allHabits.filter(h => h.archived_at);
+  },
 
   setSelectedDate: (date) => set({ selectedDate: date }),
 
@@ -86,11 +100,11 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
     try {
       set({ isLoading: true, error: null });
-      const habits = await api.get<Habit[]>('/habits');
-      set({ habits, isLoading: false });
+      const allHabits = await api.get<Habit[]>('/habits?includeAll=true');
+      set({ allHabits, isLoading: false });
 
       // Also fetch timers for time-based habits
-      const timeHabits = habits.filter(h => h.type === 'time');
+      const timeHabits = allHabits.filter(h => h.type === 'time' && !h.paused_at && !h.archived_at);
       for (const habit of timeHabits) {
         get().fetchTimer(habit.id);
       }
@@ -99,23 +113,6 @@ export const useHabitStore = create<HabitState>((set, get) => ({
       set({
         isLoading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch habits'
-      });
-    }
-  },
-
-  fetchAllHabits: async () => {
-    const state = get();
-    if (state.allHabitsLoading) return;
-
-    try {
-      set({ allHabitsLoading: true, allHabitsError: null });
-      const allHabits = await api.get<Habit[]>('/habits?includeAll=true');
-      set({ allHabits, allHabitsLoading: false });
-    } catch (error) {
-      console.error('Failed to fetch all habits:', error);
-      set({
-        allHabitsLoading: false,
-        allHabitsError: error instanceof Error ? error.message : 'Failed to fetch all habits'
       });
     }
   },
@@ -143,13 +140,14 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
   createHabit: async (name, type, targetValue) => {
     try {
-      await api.post<Habit>('/habits', {
+      const habit = await api.post<Habit>('/habits', {
         name,
         type,
         target_value: targetValue,
       });
-      // Refresh from server to ensure consistency
-      await get().fetchHabits();
+      set((state) => ({
+        allHabits: [...state.allHabits, habit],
+      }));
     } catch (error) {
       console.error('Failed to create habit:', error);
       throw error;
@@ -160,7 +158,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     try {
       const habit = await api.put<Habit>(`/habits/${id}`, updates);
       set((state) => ({
-        habits: state.habits.map((h) => (h.id === id ? habit : h)),
+        allHabits: state.allHabits.map((h) => (h.id === id ? habit : h)),
       }));
     } catch (error) {
       console.error('Failed to update habit:', error);
@@ -170,9 +168,9 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
   archiveHabit: async (id) => {
     try {
-      await api.post(`/habits/${id}/archive`, {});
+      const habit = await api.post<Habit>(`/habits/${id}/archive`, {});
       set((state) => ({
-        habits: state.habits.filter((h) => h.id !== id),
+        allHabits: state.allHabits.map((h) => (h.id === id ? habit : h)),
       }));
     } catch (error) {
       console.error('Failed to archive habit:', error);
@@ -182,8 +180,10 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
   unarchiveHabit: async (id) => {
     try {
-      await api.post(`/habits/${id}/unarchive`, {});
-      await get().fetchAllHabits();
+      const habit = await api.post<Habit>(`/habits/${id}/unarchive`, {});
+      set((state) => ({
+        allHabits: state.allHabits.map((h) => (h.id === id ? habit : h)),
+      }));
     } catch (error) {
       console.error('Failed to unarchive habit:', error);
       throw error;
@@ -194,7 +194,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     try {
       await api.delete(`/habits/${id}`);
       set((state) => ({
-        habits: state.habits.filter((h) => h.id !== id),
+        allHabits: state.allHabits.filter((h) => h.id !== id),
       }));
     } catch (error) {
       console.error('Failed to delete habit:', error);
@@ -206,7 +206,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     try {
       const habit = await api.post<Habit>(`/habits/${id}/pause`, {});
       set((state) => ({
-        habits: state.habits.map((h) => (h.id === id ? habit : h)),
+        allHabits: state.allHabits.map((h) => (h.id === id ? habit : h)),
       }));
     } catch (error) {
       console.error('Failed to pause habit:', error);
@@ -218,7 +218,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     try {
       const habit = await api.post<Habit>(`/habits/${id}/unpause`, {});
       set((state) => ({
-        habits: state.habits.map((h) => (h.id === id ? habit : h)),
+        allHabits: state.allHabits.map((h) => (h.id === id ? habit : h)),
       }));
     } catch (error) {
       console.error('Failed to unpause habit:', error);
