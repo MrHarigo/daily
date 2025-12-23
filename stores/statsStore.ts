@@ -29,7 +29,7 @@ interface StatsState {
   habits: HabitInfo[];
   habitStats: Map<string, HabitStat>;
   isLoading: boolean;
-  lastFetchTimestamp: number;
+  error: string | null;
 
   fetchStats: () => Promise<void>;
 }
@@ -39,20 +39,16 @@ export const useStatsStore = create<StatsState>((set, get) => ({
   habits: [],
   habitStats: new Map(),
   isLoading: false,
-  lastFetchTimestamp: 0,
+  error: null,
 
   fetchStats: async () => {
     const state = get();
-    const now = Date.now();
 
-    // Skip if already loading AND less than 5 seconds since last fetch attempt
-    // This prevents stuck states while allowing retry after timeout
-    if (state.isLoading && now - state.lastFetchTimestamp < 5000) {
-      return;
-    }
+    // Simple race condition prevention: skip if already loading
+    if (state.isLoading) return;
 
     try {
-      set({ isLoading: true, lastFetchTimestamp: now });
+      set({ isLoading: true, error: null });
 
       const [overviewData, habitsData] = await Promise.all([
         api.get<OverviewStats>('/stats/overview'),
@@ -83,7 +79,10 @@ export const useStatsStore = create<StatsState>((set, get) => ({
       });
     } catch (error) {
       console.error('Failed to fetch stats:', error);
-      set({ isLoading: false });
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch stats'
+      });
     }
   },
 }));

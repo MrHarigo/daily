@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useStatsStore, HabitInfo, HabitStat } from '@/stores/statsStore';
 
 export function Stats() {
-  const { overview, habits, habitStats, isLoading, fetchStats } = useStatsStore();
+  const { overview, habits, habitStats, isLoading, error, fetchStats } = useStatsStore();
   const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
@@ -17,6 +17,22 @@ export function Stats() {
   const pausedHabits = habits.filter(h => h.paused_at && !h.archived_at);
   const archivedHabits = habits.filter(h => h.archived_at);
   const inactiveHabits = [...pausedHabits, ...archivedHabits];
+
+  // Show error state if fetch failed
+  if (error) {
+    return (
+      <div className="card text-center py-12 bg-red-950/30 border-red-900/50">
+        <p className="text-red-400 font-medium mb-2">Failed to load statistics</p>
+        <p className="text-sm text-gray-400 mb-4">{error}</p>
+        <button
+          onClick={fetchStats}
+          className="btn btn-secondary"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   // Only show full loading state if we have no cached data
   if (isLoading && !overview) {

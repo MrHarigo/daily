@@ -17,14 +17,19 @@ export default function Home() {
   const { fetchStats } = useStatsStore();
   const [activeTab, setActiveTab] = useState<Tab>('today');
   const lastRefreshRef = useRef<number>(0);
+  const prevAuthenticatedRef = useRef<boolean>(false);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  // Reset to Today tab when user logs in
+  // Reset to Today tab only when user logs in (false -> true transition)
   useEffect(() => {
-    if (isAuthenticated) {
+    const wasAuthenticated = prevAuthenticatedRef.current;
+    prevAuthenticatedRef.current = isAuthenticated;
+
+    // Only reset tab when transitioning from logged out to logged in
+    if (!wasAuthenticated && isAuthenticated) {
       setActiveTab('today');
     }
   }, [isAuthenticated]);

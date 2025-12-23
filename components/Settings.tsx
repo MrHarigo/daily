@@ -14,6 +14,7 @@ export function Settings({ onLogout }: SettingsProps) {
   const {
     allHabits,
     allHabitsLoading,
+    allHabitsError,
     fetchAllHabits,
     updateHabit,
     archiveHabit,
@@ -23,7 +24,7 @@ export function Settings({ onLogout }: SettingsProps) {
     unpauseHabit,
   } = useHabitStore();
   const { dayOffs, fetchDayOffs, addDayOff, removeDayOff, fetchHolidays } = useCalendarStore();
-  const { user, devices, devicesLoading, fetchDevices, addDevice, removeDevice } = useAuthStore();
+  const { user, devices, devicesLoading, devicesError, fetchDevices, addDevice, removeDevice } = useAuthStore();
 
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [newDayOff, setNewDayOff] = useState('');
@@ -134,6 +135,16 @@ export function Settings({ onLogout }: SettingsProps) {
           <h2 className="text-xl font-semibold">Manage Habits</h2>
           <button onClick={() => setShowAddModal(true)} className="btn btn-primary text-sm">+ Add Habit</button>
         </div>
+
+        {allHabitsError && (
+          <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-4 mb-4">
+            <p className="text-red-400 font-medium mb-2">Failed to load habits</p>
+            <p className="text-sm text-gray-400 mb-3">{allHabitsError}</p>
+            <button onClick={fetchAllHabits} className="btn btn-secondary btn-sm">
+              Retry
+            </button>
+          </div>
+        )}
 
         {allHabitsLoading && allHabits.length === 0 ? (
           <div className="flex justify-center py-8">
@@ -306,6 +317,16 @@ export function Settings({ onLogout }: SettingsProps) {
         {deviceError && (
           <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 mb-4">
             <p className="text-danger text-sm">{deviceError}</p>
+          </div>
+        )}
+
+        {devicesError && (
+          <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-4 mb-4">
+            <p className="text-red-400 font-medium mb-2">Failed to load devices</p>
+            <p className="text-sm text-gray-400 mb-3">{devicesError}</p>
+            <button onClick={fetchDevices} className="btn btn-secondary btn-sm">
+              Retry
+            </button>
           </div>
         )}
 

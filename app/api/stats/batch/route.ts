@@ -28,16 +28,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify ownership and fetch all habits at once
-    const habits = await query<{ id: string; type: string; created_at: Date }>(
-      `SELECT id, type, created_at FROM habits WHERE id = ANY($1) AND user_id = $2`,
+    const habits = await query<{ id: string; type: string; created_at: string }>(
+      `SELECT id, type, to_char(created_at, 'YYYY-MM-DD') as created_at FROM habits WHERE id = ANY($1) AND user_id = $2`,
       [habitIds, auth.userId]
     );
 
     if (habits.length === 0) {
       return NextResponse.json({});
     }
-
-    const habitIdSet = new Set(habits.map(h => h.id));
 
     // Fetch all completions for all habits at once
     const completions = await query<{ habit_id: string; date: string; value: number; completed: boolean }>(
@@ -90,9 +88,7 @@ export async function GET(request: NextRequest) {
 
     for (const habit of habits) {
       const habitCompletions = completionsByHabit.get(habit.id) || [];
-      const createdAt = habit.created_at instanceof Date
-        ? habit.created_at.toISOString().split('T')[0]
-        : String(habit.created_at).split('T')[0];
+      const createdAt = habit.created_at; // Already formatted as YYYY-MM-DD from query
 
       // Calculate streak
       const streak = calculateStreak(

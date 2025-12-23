@@ -33,7 +33,7 @@ interface AuthState {
   // Devices
   devices: Device[];
   devicesLoading: boolean;
-  devicesLastFetchTimestamp: number;
+  devicesError: string | null;
 
   checkAuth: () => Promise<void>;
   // Direct passkey login (no email needed)
@@ -61,7 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isNewUser: false,
   devices: [],
   devicesLoading: false,
-  devicesLastFetchTimestamp: 0,
+  devicesError: null,
 
   checkAuth: async () => {
     try {
@@ -206,20 +206,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   fetchDevices: async () => {
     const state = get();
-    const now = Date.now();
-
-    // Skip if already loading AND less than 5 seconds since last fetch attempt
-    if (state.devicesLoading && now - state.devicesLastFetchTimestamp < 5000) {
-      return;
-    }
+    if (state.devicesLoading) return;
 
     try {
-      set({ devicesLoading: true, devicesLastFetchTimestamp: now });
+      set({ devicesLoading: true, devicesError: null });
       const devices = await api.get<Device[]>('/auth/devices');
       set({ devices, devicesLoading: false });
     } catch (error) {
       console.error('Failed to fetch devices:', error);
-      set({ devicesLoading: false });
+      set({
+        devicesLoading: false,
+        devicesError: error instanceof Error ? error.message : 'Failed to fetch devices'
+      });
     }
   },
 

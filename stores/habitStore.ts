@@ -34,10 +34,11 @@ interface HabitState {
   habits: Habit[];
   allHabits: Habit[]; // includes paused and archived
   allHabitsLoading: boolean;
-  allHabitsLastFetchTimestamp: number;
+  allHabitsError: string | null;
   completions: Record<string, HabitCompletion>; // keyed by `${habit_id}-${date}`
   activeTimers: Record<string, ActiveTimer>; // keyed by habit_id
   isLoading: boolean;
+  error: string | null;
   selectedDate: string;
 
   // Actions
@@ -70,17 +71,21 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   habits: [],
   allHabits: [],
   allHabitsLoading: false,
-  allHabitsLastFetchTimestamp: 0,
+  allHabitsError: null,
   completions: {},
   activeTimers: {},
   isLoading: false,
+  error: null,
   selectedDate: new Date().toISOString().split('T')[0],
 
   setSelectedDate: (date) => set({ selectedDate: date }),
 
   fetchHabits: async () => {
+    const state = get();
+    if (state.isLoading) return;
+
     try {
-      set({ isLoading: true });
+      set({ isLoading: true, error: null });
       const habits = await api.get<Habit[]>('/habits');
       set({ habits, isLoading: false });
 
@@ -91,26 +96,27 @@ export const useHabitStore = create<HabitState>((set, get) => ({
       }
     } catch (error) {
       console.error('Failed to fetch habits:', error);
-      set({ isLoading: false });
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch habits'
+      });
     }
   },
 
   fetchAllHabits: async () => {
-    const state = useHabitStore.getState();
-    const now = Date.now();
-
-    // Skip if already loading AND less than 5 seconds since last fetch attempt
-    if (state.allHabitsLoading && now - state.allHabitsLastFetchTimestamp < 5000) {
-      return;
-    }
+    const state = get();
+    if (state.allHabitsLoading) return;
 
     try {
-      set({ allHabitsLoading: true, allHabitsLastFetchTimestamp: now });
+      set({ allHabitsLoading: true, allHabitsError: null });
       const allHabits = await api.get<Habit[]>('/habits?includeAll=true');
       set({ allHabits, allHabitsLoading: false });
     } catch (error) {
       console.error('Failed to fetch all habits:', error);
-      set({ allHabitsLoading: false });
+      set({
+        allHabitsLoading: false,
+        allHabitsError: error instanceof Error ? error.message : 'Failed to fetch all habits'
+      });
     }
   },
 
