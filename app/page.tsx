@@ -11,6 +11,8 @@ import { Settings } from '@/components/Settings';
 
 type Tab = 'today' | 'stats' | 'settings';
 
+const IDLE_REFRESH_THRESHOLD_MS = 30_000;
+
 export default function Home() {
   const { isAuthenticated, isLoading, checkAuth, logout, fetchDevices } = useAuthStore();
   const { fetchHabits } = useHabitStore();
@@ -56,7 +58,7 @@ export default function Home() {
       if (document.visibilityState === 'visible') {
         const now = Date.now();
         // Only refetch if more than 30 seconds since last refresh
-        if (now - lastRefreshRef.current > 30000) {
+        if (now - lastRefreshRef.current > IDLE_REFRESH_THRESHOLD_MS) {
           lastRefreshRef.current = now;
           refetchCurrentTab();
         }
