@@ -33,3 +33,6 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# Claude Code
+.claude/settings.local.json
+
