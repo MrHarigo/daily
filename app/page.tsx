@@ -82,7 +82,10 @@ export default function Home() {
 
   if (!isAuthenticated) {
     return (
-      <ErrorBoundary fallbackTitle="Login Error">
+      <ErrorBoundary
+        fallbackTitle="Login Error"
+        onReset={() => checkAuth()}
+      >
         <Login />
       </ErrorBoundary>
     );
@@ -135,17 +138,29 @@ export default function Home() {
       {/* Content */}
       <main className="max-w-5xl mx-auto px-4 lg:px-8 py-8">
         {activeTab === 'today' && (
-          <ErrorBoundary fallbackTitle="Dashboard Error">
+          <ErrorBoundary
+            fallbackTitle="Dashboard Error"
+            onReset={() => fetchHabits()}
+          >
             <Dashboard />
           </ErrorBoundary>
         )}
         {activeTab === 'stats' && (
-          <ErrorBoundary fallbackTitle="Stats Error">
+          <ErrorBoundary
+            fallbackTitle="Stats Error"
+            onReset={() => fetchStats()}
+          >
             <Stats />
           </ErrorBoundary>
         )}
         {activeTab === 'settings' && (
-          <ErrorBoundary fallbackTitle="Settings Error">
+          <ErrorBoundary
+            fallbackTitle="Settings Error"
+            onReset={() => {
+              fetchHabits()
+              fetchDevices()
+            }}
+          >
             <Settings onLogout={logout} />
           </ErrorBoundary>
         )}

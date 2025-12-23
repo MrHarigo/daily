@@ -5,20 +5,22 @@ import React, { Component, ReactNode } from 'react'
 interface Props {
   children: ReactNode
   fallbackTitle?: string
+  onReset?: () => void
 }
 
 interface State {
   hasError: boolean
   error: Error | null
+  resetKey: number
 }
 
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false, error: null, resetKey: 0 }
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error }
   }
 
@@ -27,7 +29,15 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null })
+    // Call parent's onReset callback if provided (for cleanup)
+    this.props.onReset?.()
+
+    // Increment resetKey to force remount of children
+    this.setState((prevState) => ({
+      hasError: false,
+      error: null,
+      resetKey: prevState.resetKey + 1
+    }))
   }
 
   render() {
@@ -46,8 +56,8 @@ class ErrorBoundary extends Component<Props, State> {
           {this.state.error && (
             <details className="mb-4 text-sm text-red-800 dark:text-red-200 max-w-lg">
               <summary className="cursor-pointer font-medium mb-2">Error details</summary>
-              <pre className="bg-red-100 dark:bg-red-900/20 p-3 rounded overflow-auto">
-                {this.state.error.toString()}
+              <pre className="bg-red-100 dark:bg-red-900/20 p-3 rounded overflow-auto text-xs">
+                {this.state.error.stack || this.state.error.toString()}
               </pre>
             </details>
           )}
@@ -61,7 +71,8 @@ class ErrorBoundary extends Component<Props, State> {
       )
     }
 
-    return this.props.children
+    // Use resetKey to force remount children after error recovery
+    return <div key={this.state.resetKey}>{this.props.children}</div>
   }
 }
 
