@@ -102,7 +102,7 @@ export function Stats() {
           <div className="space-y-3">
             {/* Active Habits */}
             {activeHabits.map((habit) => {
-              const stat = habitStats.get(habit.id);
+              const stat = habitStats[habit.id];
               if (!stat) return null;
               return (
                 <div key={habit.id} className="card">
@@ -146,7 +146,7 @@ export function Stats() {
                 {showInactive && (
                   <div className="space-y-3">
                     {inactiveHabits.map((habit) => {
-                      const stat = habitStats.get(habit.id);
+                      const stat = habitStats[habit.id];
                       if (!stat) return null;
                       const isPaused = !!habit.paused_at && !habit.archived_at;
                       const isArchived = !!habit.archived_at;

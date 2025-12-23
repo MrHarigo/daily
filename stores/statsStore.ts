@@ -27,7 +27,7 @@ export interface HabitInfo {
 interface StatsState {
   overview: OverviewStats | null;
   habits: HabitInfo[];
-  habitStats: Map<string, HabitStat>;
+  habitStats: Record<string, HabitStat>;
   isLoading: boolean;
   error: string | null;
 
@@ -37,7 +37,7 @@ interface StatsState {
 export const useStatsStore = create<StatsState>((set, get) => ({
   overview: null,
   habits: [],
-  habitStats: new Map(),
+  habitStats: {},
   isLoading: false,
   error: null,
 
@@ -56,16 +56,11 @@ export const useStatsStore = create<StatsState>((set, get) => ({
       ]);
 
       // Fetch habit stats in a single batch request
-      const statsMap = new Map<string, HabitStat>();
+      let habitStats: Record<string, HabitStat> = {};
       if (habitsData.length > 0) {
         try {
           const habitIds = habitsData.map(h => h.id).join(',');
-          const batchStats = await api.get<Record<string, HabitStat>>(`/stats/batch?habitIds=${habitIds}`);
-
-          // Convert the response object to a Map
-          Object.entries(batchStats).forEach(([habitId, stat]) => {
-            statsMap.set(habitId, stat);
-          });
+          habitStats = await api.get<Record<string, HabitStat>>(`/stats/batch?habitIds=${habitIds}`);
         } catch (e) {
           console.error('Failed to fetch batch stats:', e);
         }
@@ -74,7 +69,7 @@ export const useStatsStore = create<StatsState>((set, get) => ({
       set({
         overview: overviewData,
         habits: habitsData,
-        habitStats: statsMap,
+        habitStats,
         isLoading: false,
       });
     } catch (error) {
