@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { useHabitStore } from '@/stores/habitStore';
+import { useStatsStore } from '@/stores/statsStore';
 import { Login } from '@/components/Login';
 import { Dashboard } from '@/components/Dashboard';
 import { Stats } from '@/components/Stats';
@@ -10,19 +12,62 @@ import { Settings } from '@/components/Settings';
 type Tab = 'today' | 'stats' | 'settings';
 
 export default function Home() {
-  const { isAuthenticated, isLoading, checkAuth, logout } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, logout, fetchDevices } = useAuthStore();
+  const { fetchHabits, fetchAllHabits } = useHabitStore();
+  const { fetchStats } = useStatsStore();
   const [activeTab, setActiveTab] = useState<Tab>('today');
+  const lastRefreshRef = useRef<number>(0);
+  const prevAuthenticatedRef = useRef<boolean>(false);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  // Reset to Today tab when user logs in
+  // Reset to Today tab only when user logs in (false -> true transition)
   useEffect(() => {
-    if (isAuthenticated) {
+    const wasAuthenticated = prevAuthenticatedRef.current;
+    prevAuthenticatedRef.current = isAuthenticated;
+
+    // Only reset tab when transitioning from logged out to logged in
+    if (!wasAuthenticated && isAuthenticated) {
       setActiveTab('today');
     }
   }, [isAuthenticated]);
+
+  // Refetch data for the current tab
+  const refetchCurrentTab = useCallback(() => {
+    if (!isAuthenticated) return;
+
+    switch (activeTab) {
+      case 'today':
+        fetchHabits();
+        break;
+      case 'stats':
+        fetchStats();
+        break;
+      case 'settings':
+        fetchAllHabits();
+        fetchDevices();
+        break;
+    }
+  }, [activeTab, isAuthenticated, fetchHabits, fetchStats, fetchAllHabits, fetchDevices]);
+
+  // Refetch on visibility change (user returns from idle/background)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds since last refresh
+        if (now - lastRefreshRef.current > 30000) {
+          lastRefreshRef.current = now;
+          refetchCurrentTab();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [refetchCurrentTab]);
 
   if (isLoading) {
     return (

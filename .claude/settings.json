@@ -4,8 +4,16 @@
       "Bash(npm install:*)",
       "Bash(npm uninstall:*)",
       "Bash(npm run build:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(find:*)",
+      "Bash(gh pr list:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: centralized state management with stale-while-revalidate\n\n- Move devices state from Settings to authStore\n- Create statsStore for centralized stats data\n- Add allHabits/fetchAllHabits to habitStore for Settings\n- Implement visibility change detection for auto-refresh on idle return\n- Show cached data while loading (stale-while-revalidate pattern)\n- Add loading indicators only when no cached data exists\n\nThis improves UX by:\n- Preventing empty state flash when switching tabs after idle\n- Keeping data fresh with background refetch\n- Showing existing data immediately while fetching updates\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(gh pr create:*)",
+      "Bash(claude update:*)"
     ],
-    "deny": []
+    "deny": [],
+    "ask": []
   }
 }

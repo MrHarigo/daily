@@ -32,6 +32,7 @@ export function Dashboard() {
     const year = new Date().getFullYear();
     fetchHolidays(year);
     fetchDayOffs();
+    // Always fetch fresh data, but show cached data while loading
     fetchHabits();
   }, [fetchHolidays, fetchDayOffs, fetchHabits]);
 
@@ -106,7 +107,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {isLoading ? (
+      {isLoading && habits.length === 0 ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
         </div>

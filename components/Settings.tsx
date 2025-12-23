@@ -5,99 +5,73 @@ import { useHabitStore, Habit } from '@/stores/habitStore';
 import { useCalendarStore } from '@/stores/calendarStore';
 import { useAuthStore } from '@/stores/authStore';
 import { AddHabitModal } from '@/components/AddHabitModal';
-import { api } from '@/lib/api';
-import { startRegistration } from '@simplewebauthn/browser';
-import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
 
 interface SettingsProps {
   onLogout: () => void;
 }
 
-interface HabitWithArchived extends Habit {
-  archived_at?: string | null;
-}
-
-interface Device {
-  id: string;
-  device_name: string;
-  created_at: string;
-}
-
 export function Settings({ onLogout }: SettingsProps) {
-  const { updateHabit, archiveHabit, deleteHabit, pauseHabit, unpauseHabit } = useHabitStore();
+  const {
+    allHabits,
+    allHabitsLoading,
+    allHabitsError,
+    fetchAllHabits,
+    updateHabit,
+    archiveHabit,
+    unarchiveHabit,
+    deleteHabit,
+    pauseHabit,
+    unpauseHabit,
+  } = useHabitStore();
   const { dayOffs, fetchDayOffs, addDayOff, removeDayOff, fetchHolidays } = useCalendarStore();
-  const { user } = useAuthStore();
+  const { user, devices, devicesLoading, devicesError, fetchDevices, addDevice, removeDevice } = useAuthStore();
 
-  const [allHabits, setAllHabits] = useState<HabitWithArchived[]>([]);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [newDayOff, setNewDayOff] = useState('');
   const [dayOffReason, setDayOffReason] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  
-  // Device management state
-  const [devices, setDevices] = useState<Device[]>([]);
+
+  // Device management state (only local UI state)
   const [isAddingDevice, setIsAddingDevice] = useState(false);
   const [deviceError, setDeviceError] = useState<string | null>(null);
 
-  const fetchAllHabits = async () => {
-    try {
-      const habits = await api.get<HabitWithArchived[]>('/habits?includeAll=true');
-      setAllHabits(habits);
-    } catch (error) {
-      console.error('Failed to fetch habits:', error);
-    }
-  };
-
-  const fetchDevices = async () => {
-    try {
-      const data = await api.get<Device[]>('/auth/devices');
-      setDevices(data);
-    } catch (error) {
-      console.error('Failed to fetch devices:', error);
-    }
-  };
-
   useEffect(() => {
+    // Always fetch fresh data, but show cached data while loading
     fetchAllHabits();
-    fetchDayOffs();
     fetchDevices();
-  }, [fetchDayOffs]);
+    fetchDayOffs();
+  }, [fetchAllHabits, fetchDevices, fetchDayOffs]);
 
   // Split habits into sections
   const activeHabits = allHabits.filter(h => !h.paused_at && !h.archived_at);
   const pausedHabits = allHabits.filter(h => h.paused_at && !h.archived_at);
   const archivedHabits = allHabits.filter(h => h.archived_at);
 
-  const handleArchiveHabit = async (habit: HabitWithArchived) => {
+  const handleArchiveHabit = async (habit: Habit) => {
     if (confirm(`Archive "${habit.name}"? You can restore it later.`)) {
       await archiveHabit(habit.id);
-      fetchAllHabits();
+      await fetchAllHabits();
     }
   };
 
-  const handleDeleteHabit = async (habit: HabitWithArchived) => {
+  const handleDeleteHabit = async (habit: Habit) => {
     if (confirm(`Permanently delete "${habit.name}"? This will remove all data and cannot be undone!`)) {
       await deleteHabit(habit.id);
-      fetchAllHabits();
+      await fetchAllHabits();
     }
   };
 
-  const handlePauseHabit = async (habit: HabitWithArchived) => {
+  const handlePauseHabit = async (habit: Habit) => {
     if (habit.paused_at) {
       await unpauseHabit(habit.id);
     } else {
       await pauseHabit(habit.id);
     }
-    fetchAllHabits();
+    await fetchAllHabits();
   };
 
-  const handleUnarchiveHabit = async (habit: HabitWithArchived) => {
-    try {
-      await api.post(`/habits/${habit.id}/unarchive`, {});
-      fetchAllHabits();
-    } catch (error) {
-      console.error('Failed to unarchive habit:', error);
-    }
+  const handleUnarchiveHabit = async (habit: Habit) => {
+    await unarchiveHabit(habit.id);
   };
 
   const handleAddDayOff = async (e: React.FormEvent) => {
@@ -116,20 +90,9 @@ export function Settings({ onLogout }: SettingsProps) {
   const handleAddDevice = async () => {
     setIsAddingDevice(true);
     setDeviceError(null);
-    
+
     try {
-      // Get registration options
-      const options = await api.get<PublicKeyCredentialCreationOptionsJSON>('/auth/add-device');
-      
-      // Start WebAuthn registration
-      const credential = await startRegistration({ optionsJSON: options });
-      
-      // Verify with server
-      const result = await api.post<{ verified: boolean; deviceName: string }>('/auth/add-device', credential);
-      
-      if (result.verified) {
-        fetchDevices();
-      }
+      await addDevice();
     } catch (err) {
       if ((err as { name?: string })?.name !== 'NotAllowedError') {
         setDeviceError(err instanceof Error ? err.message : 'Failed to add device');
@@ -143,10 +106,9 @@ export function Settings({ onLogout }: SettingsProps) {
     if (!confirm(`Remove "${deviceName}"? You won't be able to sign in from this device anymore.`)) {
       return;
     }
-    
+
     try {
-      await api.delete(`/auth/devices?id=${encodeURIComponent(deviceId)}`);
-      fetchDevices();
+      await removeDevice(deviceId);
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : 'Failed to remove device');
     }
@@ -173,8 +135,22 @@ export function Settings({ onLogout }: SettingsProps) {
           <h2 className="text-xl font-semibold">Manage Habits</h2>
           <button onClick={() => setShowAddModal(true)} className="btn btn-primary text-sm">+ Add Habit</button>
         </div>
-        
-        {allHabits.length === 0 ? (
+
+        {allHabitsError && (
+          <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-4 mb-4">
+            <p className="text-red-400 font-medium mb-2">Failed to load habits</p>
+            <p className="text-sm text-gray-400 mb-3">{allHabitsError}</p>
+            <button onClick={fetchAllHabits} className="btn btn-secondary btn-sm">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {allHabitsLoading && allHabits.length === 0 ? (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : allHabits.length === 0 ? (
           <div className="card text-center py-8">
             <p className="text-gray-400">No habits yet</p>
           </div>
@@ -344,41 +320,57 @@ export function Settings({ onLogout }: SettingsProps) {
           </div>
         )}
 
-        <div className="space-y-2">
-          {devices.map((device) => (
-            <div key={device.id} className="card flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-surface-700 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    {device.device_name === 'Mac' || device.device_name === 'Windows' || device.device_name === 'Linux' ? (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    ) : (
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    )}
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-medium">{device.device_name || 'Unknown Device'}</p>
-                  <p className="text-sm text-gray-500">Added {formatDate(device.created_at)}</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => handleRemoveDevice(device.id, device.device_name || 'this device')}
-                className="btn btn-ghost text-sm text-danger"
-                disabled={devices.length <= 1}
-                title={devices.length <= 1 ? 'Cannot remove your only device' : 'Remove device'}
-              >
-                Remove
-              </button>
-            </div>
-          ))}
+        {devicesError && (
+          <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-4 mb-4">
+            <p className="text-red-400 font-medium mb-2">Failed to load devices</p>
+            <p className="text-sm text-gray-400 mb-3">{devicesError}</p>
+            <button onClick={fetchDevices} className="btn btn-secondary btn-sm">
+              Retry
+            </button>
+          </div>
+        )}
 
-          {devices.length === 0 && (
-            <div className="card text-center py-6">
-              <p className="text-gray-400 text-sm">No devices registered</p>
-            </div>
-          )}
-        </div>
+        {devicesLoading && devices.length === 0 ? (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {devices.map((device) => (
+              <div key={device.id} className="card flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-surface-700 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      {device.device_name === 'Mac' || device.device_name === 'Windows' || device.device_name === 'Linux' ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      )}
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium">{device.device_name || 'Unknown Device'}</p>
+                    <p className="text-sm text-gray-500">Added {formatDate(device.created_at)}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRemoveDevice(device.id, device.device_name || 'this device')}
+                  className="btn btn-ghost text-sm text-danger"
+                  disabled={devices.length <= 1}
+                  title={devices.length <= 1 ? 'Cannot remove your only device' : 'Remove device'}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+
+            {devices.length === 0 && (
+              <div className="card text-center py-6">
+                <p className="text-gray-400 text-sm">No devices registered</p>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Account Section */}
@@ -404,7 +396,7 @@ export function Settings({ onLogout }: SettingsProps) {
 }
 
 interface HabitSettingsCardProps {
-  habit: HabitWithArchived;
+  habit: Habit;
   editingHabit: Habit | null;
   onEdit: (habit: Habit) => void;
   onSave: (updates: Partial<Habit>) => Promise<void>;
