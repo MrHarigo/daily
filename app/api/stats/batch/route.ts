@@ -121,8 +121,8 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(result);
-  } catch (error) {
-    console.error('Batch stats error:', error);
+  } catch (err) {
+    console.error('Batch stats error:', err);
     return NextResponse.json({ error: 'Failed to fetch batch stats' }, { status: 500 });
   }
 }

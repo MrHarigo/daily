@@ -69,8 +69,8 @@ export async function GET() {
       totalCompletions,
       totalHabits: habits.length,
     });
-  } catch (error) {
-    console.error('Stats overview error:', error);
+  } catch (err) {
+    console.error('Stats overview error:', err);
     return NextResponse.json({ error: 'Failed to fetch overview stats' }, { status: 500 });
   }
 }

@@ -26,8 +26,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       [id, date, delta, habit?.target_value || 1]
     );
     return NextResponse.json(completion);
-  } catch (error) {
-    console.error('Increment error:', error);
+  } catch (err) {
+    console.error('Increment error:', err);
     return NextResponse.json({ error: 'Failed to increment habit' }, { status: 500 });
   }
 }

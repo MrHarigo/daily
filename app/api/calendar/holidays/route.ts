@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
     } catch {
       return NextResponse.json([]);
     }
-  } catch (error) {
-    console.error('Fetch holidays error:', error);
+  } catch (err) {
+    console.error('Fetch holidays error:', err);
     return NextResponse.json({ error: 'Failed to fetch holidays' }, { status: 500 });
   }
 }

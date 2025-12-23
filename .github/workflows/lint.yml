@@ -29,10 +29,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check for auto-fix loops
+        id: check-loop
+        run: |
+          RECENT_COMMIT=$(git log -1 --pretty=%B)
+          if [[ "$RECENT_COMMIT" == "style: auto-fix lint issues" ]]; then
+            echo "loop_detected=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Auto-fix loop detected - skipping to prevent infinite commits"
+          else
+            echo "loop_detected=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run ESLint with auto-fix
-        run: npm run lint:fix || true
+        if: steps.check-loop.outputs.loop_detected == 'false'
+        id: lint-fix
+        run: |
+          if npm run lint:fix; then
+            echo "exit_code=0" >> $GITHUB_OUTPUT
+          else
+            EXIT_CODE=$?
+            echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+            # Exit 0 for lint errors (expected), non-zero for fatal errors
+            if [ $EXIT_CODE -eq 1 ]; then
+              exit 0
+            else
+              exit $EXIT_CODE
+            fi
+          fi
 
       - name: Check for changes
+        if: steps.check-loop.outputs.loop_detected == 'false'
         id: verify-changed-files
         run: |
           if git diff --exit-code; then
@@ -42,7 +68,7 @@ jobs:
           fi
 
       - name: Commit and push changes
-        if: steps.verify-changed-files.outputs.changed == 'true'
+        if: steps.verify-changed-files.outputs.changed == 'true' && steps.check-loop.outputs.loop_detected == 'false'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"

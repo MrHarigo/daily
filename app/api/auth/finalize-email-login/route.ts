@@ -42,8 +42,8 @@ export async function POST() {
         username: user.username
       }
     });
-  } catch (error) {
-    console.error('Finalize email login error:', error);
+  } catch (err) {
+    console.error('Finalize email login error:', err);
     return NextResponse.json(
       { error: 'Failed to finalize login' },
       { status: 500 }

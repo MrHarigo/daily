@@ -39,8 +39,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
     return NextResponse.json(timer);
-  } catch (error) {
-    console.error('Timer start error:', error);
+  } catch (err) {
+    console.error('Timer start error:', err);
     return NextResponse.json({ error: 'Failed to start timer' }, { status: 500 });
   }
 }

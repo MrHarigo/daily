@@ -38,8 +38,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     
     await query('DELETE FROM active_timers WHERE habit_id = $1', [id]);
     return NextResponse.json({ completion, totalSeconds });
-  } catch (error) {
-    console.error('Timer stop error:', error);
+  } catch (err) {
+    console.error('Timer stop error:', err);
     return NextResponse.json({ error: 'Failed to stop timer' }, { status: 500 });
   }
 }

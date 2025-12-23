@@ -82,26 +82,21 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
   const currentCompletion = completions[completionKey];
   const existingValue = currentCompletion?.value || 0;
 
-  // Clear stoppedTime when server value catches up
-  useEffect(() => {
-    if (stoppedTime !== null && existingValue >= stoppedTime) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStoppedTime(null);
-    }
-  }, [stoppedTime, existingValue]);
+  // Derive: only use stoppedTime if server hasn't caught up yet
+  const effectiveStoppedTime = stoppedTime !== null && existingValue >= stoppedTime ? null : stoppedTime;
 
   // When timer is active, show displayTime
-  // When stopped, show stoppedTime (until server catches up) or existingValue
+  // When stopped, show effectiveStoppedTime (until server catches up) or existingValue
   const totalTime = optimisticTimer
     ? displayTime
-    : (stoppedTime ?? existingValue);
+    : (effectiveStoppedTime ?? existingValue);
   const progress = targetSeconds > 0 ? Math.min((totalTime / targetSeconds) * 100, 100) : 0;
 
   const handleStartTimer = async () => {
     // If resuming a paused timer, use its accumulated time
-    // If starting fresh, use existingValue (saved completion) or stoppedTime
+    // If starting fresh, use existingValue (saved completion) or effectiveStoppedTime
     const accumulatedSeconds = optimisticTimer?.accumulated_seconds
-      ?? stoppedTime
+      ?? effectiveStoppedTime
       ?? existingValue;
 
     // Set displayTime immediately to prevent flicker on first click

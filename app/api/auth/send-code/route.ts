@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       success: true,
       isNewUser: !existingUser,
     });
-  } catch (error) {
-    console.error('Send code error:', error);
+  } catch (err) {
+    console.error('Send code error:', err);
     return NextResponse.json(
       { error: 'Failed to send verification code' },
       { status: 500 }

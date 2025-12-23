@@ -15,8 +15,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(habit);
-  } catch (error) {
-    console.error('Unpause habit error:', error);
+  } catch (err) {
+    console.error('Unpause habit error:', err);
     return NextResponse.json({ error: 'Failed to unpause habit' }, { status: 500 });
   }
 }

@@ -65,8 +65,8 @@ export async function GET() {
     await session.save();
 
     return NextResponse.json(options);
-  } catch (error) {
-    console.error('Login options error:', error);
+  } catch (err) {
+    console.error('Login options error:', err);
     return NextResponse.json({ error: 'Failed to generate options' }, { status: 500 });
   }
 }

@@ -56,8 +56,8 @@ export async function GET() {
     await session.save();
 
     return NextResponse.json(options);
-  } catch (error) {
-    console.error('Add device options error:', error);
+  } catch (err) {
+    console.error('Add device options error:', err);
     return NextResponse.json({ error: 'Failed to generate options' }, { status: 500 });
   }
 }
@@ -117,8 +117,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ error: 'Verification failed' }, { status: 400 });
-  } catch (error) {
-    console.error('Add device verify error:', error);
+  } catch (err) {
+    console.error('Add device verify error:', err);
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 });
   }
 }

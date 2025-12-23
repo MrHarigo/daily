@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
         isNewUser: true,
       });
     }
-  } catch (error) {
-    console.error('Verify code error:', error);
+  } catch (err) {
+    console.error('Verify code error:', err);
     return NextResponse.json(
       { error: 'Failed to verify code' },
       { status: 500 }

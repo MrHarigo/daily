@@ -73,8 +73,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       totalTime: habit.type === 'time' ? totalTime : undefined,
       totalCount: habit.type === 'count' ? totalCount : undefined,
     });
-  } catch (error) {
-    console.error('Habit stats error:', error);
+  } catch (err) {
+    console.error('Habit stats error:', err);
     return NextResponse.json({ error: 'Failed to fetch habit stats' }, { status: 500 });
   }
 }

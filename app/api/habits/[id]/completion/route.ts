@@ -25,8 +25,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       [id, date, value ?? 0, completed ?? false]
     );
     return NextResponse.json(completion);
-  } catch (error) {
-    console.error('Completion error:', error);
+  } catch (err) {
+    console.error('Completion error:', err);
     return NextResponse.json({ error: 'Failed to update habit completion' }, { status: 500 });
   }
 }

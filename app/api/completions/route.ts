@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       [startDate, endDate]
     );
     return NextResponse.json(completions);
-  } catch (error) {
-    console.error('Fetch completions error:', error);
+  } catch (err) {
+    console.error('Fetch completions error:', err);
     return NextResponse.json({ error: 'Failed to fetch completions' }, { status: 500 });
   }
 }

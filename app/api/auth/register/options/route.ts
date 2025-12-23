@@ -72,8 +72,8 @@ export async function POST(request: NextRequest) {
     await session.save();
 
     return NextResponse.json(options);
-  } catch (error) {
-    console.error('Registration options error:', error);
+  } catch (err) {
+    console.error('Registration options error:', err);
     return NextResponse.json({ error: 'Failed to generate options' }, { status: 500 });
   }
 }

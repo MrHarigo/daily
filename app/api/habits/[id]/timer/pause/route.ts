@@ -34,8 +34,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       [id]
     );
     return NextResponse.json(timer);
-  } catch (error) {
-    console.error('Timer pause error:', error);
+  } catch (err) {
+    console.error('Timer pause error:', err);
     return NextResponse.json({ error: 'Failed to pause timer' }, { status: 500 });
   }
 }

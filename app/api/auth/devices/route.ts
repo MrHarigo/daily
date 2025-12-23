@@ -19,8 +19,8 @@ export async function GET() {
     );
 
     return NextResponse.json(devices);
-  } catch (error) {
-    console.error('Get devices error:', error);
+  } catch (err) {
+    console.error('Get devices error:', err);
     return NextResponse.json({ error: 'Failed to get devices' }, { status: 500 });
   }
 }
@@ -62,8 +62,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Remove device error:', error);
+  } catch (err) {
+    console.error('Remove device error:', err);
     return NextResponse.json({ error: 'Failed to remove device' }, { status: 500 });
   }
 }

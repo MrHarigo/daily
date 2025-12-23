@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
       [auth.userId]
     );
     return NextResponse.json(habits);
-  } catch (error) {
-    console.error('Get habits error:', error);
+  } catch (err) {
+    console.error('Get habits error:', err);
     return NextResponse.json({ error: 'Failed to get habits' }, { status: 500 });
   }
 }
@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
       [auth.userId, name, type, target_value, (maxOrder?.max || 0) + 1]
     );
     return NextResponse.json(habit);
-  } catch (error) {
-    console.error('Create habit error:', error);
+  } catch (err) {
+    console.error('Create habit error:', err);
     return NextResponse.json({ error: 'Failed to create habit' }, { status: 500 });
   }
 }

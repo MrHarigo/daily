@@ -12,8 +12,8 @@ export async function GET() {
       [auth.userId]
     );
     return NextResponse.json(dayoffs);
-  } catch (error) {
-    console.error('Fetch day-offs error:', error);
+  } catch (err) {
+    console.error('Fetch day-offs error:', err);
     return NextResponse.json({ error: 'Failed to fetch day-offs' }, { status: 500 });
   }
 }
@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
       [auth.userId, date, reason || null]
     );
     return NextResponse.json(dayoff);
-  } catch (error) {
-    console.error('Add day-off error:', error);
+  } catch (err) {
+    console.error('Add day-off error:', err);
     return NextResponse.json({ error: 'Failed to add day-off' }, { status: 500 });
   }
 }
@@ -50,8 +50,8 @@ export async function DELETE(request: NextRequest) {
 
     await query('DELETE FROM day_offs WHERE user_id = $1 AND date = $2', [auth.userId, date]);
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Delete day-off error:', error);
+  } catch (err) {
+    console.error('Delete day-off error:', err);
     return NextResponse.json({ error: 'Failed to delete day-off' }, { status: 500 });
   }
 }

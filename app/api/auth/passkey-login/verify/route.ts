@@ -79,8 +79,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ error: 'Verification failed' }, { status: 400 });
-  } catch (error) {
-    console.error('Passkey login verify error:', error);
+  } catch (err) {
+    console.error('Passkey login verify error:', err);
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 });
   }
 }

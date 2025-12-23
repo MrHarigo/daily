@@ -16,8 +16,8 @@ export async function GET() {
       [auth.userId]
     );
     return NextResponse.json(timers);
-  } catch (error) {
-    console.error('Fetch timers error:', error);
+  } catch (err) {
+    console.error('Fetch timers error:', err);
     return NextResponse.json({ error: 'Failed to fetch timers' }, { status: 500 });
   }
 }

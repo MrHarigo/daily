@@ -17,8 +17,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     await query('DELETE FROM active_timers WHERE habit_id = $1', [id]);
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Timer reset error:', error);
+  } catch (err) {
+    console.error('Timer reset error:', err);
     return NextResponse.json({ error: 'Failed to reset timer' }, { status: 500 });
   }
 }

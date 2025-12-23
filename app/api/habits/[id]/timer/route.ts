@@ -21,8 +21,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       [id]
     );
     return NextResponse.json(timer);
-  } catch (error) {
-    console.error('Fetch timer error:', error);
+  } catch (err) {
+    console.error('Fetch timer error:', err);
     return NextResponse.json({ error: 'Failed to fetch timer' }, { status: 500 });
   }
 }
