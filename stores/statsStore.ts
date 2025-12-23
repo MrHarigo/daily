@@ -48,18 +48,21 @@ export const useStatsStore = create<StatsState>((set) => ({
         api.get<HabitInfo[]>('/habits?includeAll=true'),
       ]);
 
-      // Fetch individual habit stats
+      // Fetch habit stats in a single batch request
       const statsMap = new Map<string, HabitStat>();
-      await Promise.all(
-        habitsData.map(async (habit) => {
-          try {
-            const stat = await api.get<HabitStat>(`/stats/habit/${habit.id}`);
-            statsMap.set(habit.id, stat);
-          } catch (e) {
-            console.error(`Failed to fetch stats for ${habit.name}:`, e);
-          }
-        })
-      );
+      if (habitsData.length > 0) {
+        try {
+          const habitIds = habitsData.map(h => h.id).join(',');
+          const batchStats = await api.get<Record<string, HabitStat>>(`/stats/batch?habitIds=${habitIds}`);
+
+          // Convert the response object to a Map
+          Object.entries(batchStats).forEach(([habitId, stat]) => {
+            statsMap.set(habitId, stat);
+          });
+        } catch (e) {
+          console.error('Failed to fetch batch stats:', e);
+        }
+      }
 
       set({
         overview: overviewData,
