@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
+import { isWorkingDay, calculateStreak, getScheduledWorkingDays } from '@/lib/stats-utils';
 import { getTodayLocal, formatLocalDate } from '@/lib/date-utils';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,8 +11,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     // Verify ownership
-    const habit = await queryOne<{ id: string; type: string; created_at: Date }>(
-      'SELECT id, type, created_at FROM habits WHERE id = $1 AND user_id = $2',
+    const habit = await queryOne<{ id: string; type: string; created_at: Date; scheduled_days: number[] | null }>(
+      'SELECT id, type, created_at, scheduled_days FROM habits WHERE id = $1 AND user_id = $2',
       [id, auth.userId]
     );
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -36,22 +36,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ? formatLocalDate(habit.created_at)
       : String(habit.created_at);
 
-    // Get working days
+    // Get scheduled working days for this habit
     const today = new Date();
-    const workingDays: string[] = [];
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      if (isWorkingDay(d, holidays, dayOffs)) {
-        workingDays.push(formatLocalDate(d));
-      }
-    }
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 89); // 90 days back
+
+    const scheduledWorkingDays = getScheduledWorkingDays(
+      startDate,
+      today,
+      habit.scheduled_days,
+      holidays,
+      dayOffs
+    );
 
     // Calculate streak
     const todayStr = getTodayLocal();
     const streak = calculateStreak(
       completions.map(c => ({ date: c.date, completed: c.completed })),
-      workingDays,
+      scheduledWorkingDays,
       createdAt,
       todayStr
     );

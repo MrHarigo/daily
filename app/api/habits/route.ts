@@ -11,11 +11,11 @@ export async function GET(request: NextRequest) {
     const includeAll = searchParams.get('includeAll') === 'true';
 
     const habits = await query(
-      `SELECT id, name, type, target_value, sort_order, 
+      `SELECT id, name, type, target_value, sort_order, scheduled_days,
               to_char(created_at, 'YYYY-MM-DD') as created_at,
               to_char(paused_at, 'YYYY-MM-DD"T"HH24:MI:SS') as paused_at,
               to_char(archived_at, 'YYYY-MM-DD"T"HH24:MI:SS') as archived_at
-       FROM habits 
+       FROM habits
        WHERE user_id = $1
        ${includeAll ? '' : 'AND archived_at IS NULL'}
        ORDER BY sort_order, created_at`,
@@ -33,8 +33,24 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return auth.error;
 
   try {
-    const { name, type = 'boolean', target_value } = await request.json();
+    let { name, type = 'boolean', target_value, scheduled_days } = await request.json();
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
+
+    // Validate scheduled_days
+    if (scheduled_days !== undefined && scheduled_days !== null) {
+      if (!Array.isArray(scheduled_days)) {
+        return NextResponse.json({ error: 'scheduled_days must be an array' }, { status: 400 });
+      }
+      if (scheduled_days.length === 0) {
+        return NextResponse.json({ error: 'At least one day must be selected' }, { status: 400 });
+      }
+      // Ensure only weekdays (1-5)
+      if (!scheduled_days.every(d => Number.isInteger(d) && d >= 1 && d <= 5)) {
+        return NextResponse.json({ error: 'scheduled_days must contain only weekdays (1-5)' }, { status: 400 });
+      }
+      // Remove duplicates and sort
+      scheduled_days = [...new Set(scheduled_days)].sort();
+    }
 
     const maxOrder = await queryOne<{ max: number }>(
       'SELECT COALESCE(MAX(sort_order), 0) as max FROM habits WHERE user_id = $1 AND archived_at IS NULL',
@@ -42,12 +58,12 @@ export async function POST(request: NextRequest) {
     );
 
     const habit = await queryOne(
-      `INSERT INTO habits (user_id, name, type, target_value, sort_order)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, name, type, target_value, sort_order, 
+      `INSERT INTO habits (user_id, name, type, target_value, sort_order, scheduled_days)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, name, type, target_value, sort_order, scheduled_days,
                  to_char(created_at, 'YYYY-MM-DD') as created_at,
                  paused_at, archived_at`,
-      [auth.userId, name, type, target_value, (maxOrder?.max || 0) + 1]
+      [auth.userId, name, type, target_value, (maxOrder?.max || 0) + 1, scheduled_days || null]
     );
     return NextResponse.json(habit);
   } catch (error) {
