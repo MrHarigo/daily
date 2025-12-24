@@ -7,7 +7,7 @@ type Step = 'initial' | 'email' | 'code' | 'username' | 'passkey';
 
 export function Login() {
   const { sendCode, verifyCode, registerPasskey, directPasskeyLogin, finalizeEmailLogin, reset } = useAuthStore();
-  
+
   const [step, setStep] = useState<Step>('initial');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
@@ -16,11 +16,21 @@ export function Login() {
   const [isNewUser, setIsNewUser] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   const [redirectCountdown, setRedirectCountdown] = useState(0);
-  
+
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Check for session expiration message on mount
+  useEffect(() => {
+    const message = sessionStorage.getItem('sessionExpiredReason');
+    if (message) {
+      setSessionExpiredMessage(message);
+      sessionStorage.removeItem('sessionExpiredReason');
+    }
+  }, []);
 
   // Cooldown timer for resend
   useEffect(() => {
@@ -226,6 +236,12 @@ export function Login() {
                 <h2 className="text-xl font-semibold mb-2">Welcome</h2>
                 <p className="text-gray-400 text-sm">Sign in to continue</p>
               </div>
+
+              {sessionExpiredMessage && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-center">
+                  <p className="text-amber-400 text-sm">{sessionExpiredMessage}</p>
+                </div>
+              )}
 
               {error && (
                 <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 text-center">

@@ -32,6 +32,8 @@ export default function Home() {
   // Handle session expiration (401 responses)
   useEffect(() => {
     const handleSessionExpired = () => {
+      // Store session expiration reason for Login component to display
+      sessionStorage.setItem('sessionExpiredReason', 'Your session has expired. Please log in again.');
       logout();
     };
 
