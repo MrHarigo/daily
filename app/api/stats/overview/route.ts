@@ -10,8 +10,8 @@ export async function GET() {
 
   try {
     // Filter by user_id
-    const habits = await query<{ id: string; created_at: Date; scheduled_days: number[] | null }>(
-      'SELECT id, created_at, scheduled_days FROM habits WHERE user_id = $1 AND archived_at IS NULL AND paused_at IS NULL',
+    const habits = await query<{ id: string; created_at: Date; scheduled_days: number[] | null; frozen_streak: number; streak_frozen_at: Date | null }>(
+      'SELECT id, created_at, scheduled_days, frozen_streak, streak_frozen_at FROM habits WHERE user_id = $1 AND archived_at IS NULL AND paused_at IS NULL',
       [auth.userId]
     );
     
@@ -43,10 +43,12 @@ export async function GET() {
 
     for (const habit of habits) {
       const habitCompletions = completions.filter(c => c.habit_id === habit.id);
-      // Database returns created_at as Date object
-      const createdAt = habit.created_at instanceof Date
-        ? formatLocalDate(habit.created_at)
-        : String(habit.created_at);
+
+      // Use streak_frozen_at as base date if it exists, otherwise use created_at
+      const baseDate = habit.streak_frozen_at
+        ? (habit.streak_frozen_at instanceof Date ? formatLocalDate(habit.streak_frozen_at) : String(habit.streak_frozen_at))
+        : (habit.created_at instanceof Date ? formatLocalDate(habit.created_at) : String(habit.created_at));
+      const frozenStreak = habit.frozen_streak || 0;
 
       // Get scheduled working days for THIS habit
       const scheduledWorkingDays = getScheduledWorkingDays(
@@ -57,7 +59,18 @@ export async function GET() {
         dayOffs
       );
 
-      const streak = calculateStreak(habitCompletions, scheduledWorkingDays, createdAt, todayStr);
+      // If streak was frozen, exclude the freeze date to avoid double-counting
+      // (the freeze date is already counted in frozen_streak)
+      const workingDaysForStreak = habit.streak_frozen_at
+        ? scheduledWorkingDays.filter(d => d > baseDate)
+        : scheduledWorkingDays;
+
+      // Calculate streak since base date (either creation or last schedule change)
+      const streakSinceBase = calculateStreak(habitCompletions, workingDaysForStreak, baseDate, todayStr);
+
+      // Total streak = frozen streak + streak since base date
+      const streak = frozenStreak + streakSinceBase;
+
       if (streak > bestStreak) {
         bestStreak = streak;
         // Check if this habit was completed today

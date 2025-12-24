@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS habits (
   scheduled_days INTEGER[] CHECK (
     scheduled_days IS NULL OR
     (scheduled_days <@ ARRAY[1,2,3,4,5] AND array_length(scheduled_days, 1) > 0)
-  )
+  ),
+  streak_frozen_at DATE,
+  frozen_streak INTEGER DEFAULT 0
 );
 
 -- Habit completions (daily records)
