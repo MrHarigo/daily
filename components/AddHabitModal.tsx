@@ -13,6 +13,8 @@ export function AddHabitModal({ isOpen, onClose }: AddHabitModalProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<HabitType>('boolean');
   const [targetValue, setTargetValue] = useState('');
+  const [scheduleType, setScheduleType] = useState<'weekdays' | 'custom'>('weekdays');
+  const [customDays, setCustomDays] = useState<Set<number>>(new Set([1, 2, 3, 4, 5]));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,18 +24,31 @@ export function AddHabitModal({ isOpen, onClose }: AddHabitModalProps) {
     e.preventDefault();
     if (!name.trim()) return;
 
+    // Validate custom schedule
+    if (scheduleType === 'custom' && customDays.size === 0) {
+      setError('Please select at least one day');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
+      const scheduledDays = scheduleType === 'weekdays'
+        ? null
+        : Array.from(customDays).sort();
+
       await createHabit(
         name.trim(),
         type,
-        targetValue ? parseInt(targetValue) : undefined
+        targetValue ? parseInt(targetValue) : undefined,
+        scheduledDays
       );
       setName('');
       setType('boolean');
       setTargetValue('');
+      setScheduleType('weekdays');
+      setCustomDays(new Set([1, 2, 3, 4, 5]));
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create habit');
@@ -151,6 +166,85 @@ export function AddHabitModal({ isOpen, onClose }: AddHabitModalProps) {
               </p>
             </div>
           )}
+
+          {/* Schedule */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Schedule
+            </label>
+
+            {/* Radio buttons */}
+            <div className="space-y-2 mb-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="schedule-type"
+                  value="weekdays"
+                  checked={scheduleType === 'weekdays'}
+                  onChange={() => setScheduleType('weekdays')}
+                  className="w-4 h-4 text-accent focus:ring-accent"
+                />
+                <span className="text-sm">Weekdays (Mon-Fri)</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="schedule-type"
+                  value="custom"
+                  checked={scheduleType === 'custom'}
+                  onChange={() => setScheduleType('custom')}
+                  className="w-4 h-4 text-accent focus:ring-accent"
+                />
+                <span className="text-sm">Custom schedule</span>
+              </label>
+            </div>
+
+            {/* Day checkboxes (only shown when custom) */}
+            {scheduleType === 'custom' && (
+              <div className="grid grid-cols-5 gap-2 mt-3">
+                {[
+                  { day: 1, label: 'Mon' },
+                  { day: 2, label: 'Tue' },
+                  { day: 3, label: 'Wed' },
+                  { day: 4, label: 'Thu' },
+                  { day: 5, label: 'Fri' },
+                ].map(({ day, label }) => (
+                  <label
+                    key={day}
+                    className={`p-2 rounded-lg border text-center cursor-pointer transition-all ${
+                      customDays.has(day)
+                        ? 'border-accent bg-accent/10 text-accent'
+                        : 'border-surface-500 hover:border-surface-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={customDays.has(day)}
+                      onChange={(e) => {
+                        const newDays = new Set(customDays);
+                        if (e.target.checked) {
+                          newDays.add(day);
+                        } else {
+                          newDays.delete(day);
+                        }
+                        setCustomDays(newDays);
+                      }}
+                      className="sr-only"
+                    />
+                    <span className="text-sm font-medium">{label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500 mt-2">
+              {scheduleType === 'weekdays'
+                ? 'Habit will appear every weekday'
+                : `Habit will appear on ${customDays.size} selected day${customDays.size !== 1 ? 's' : ''}`
+              }
+            </p>
+          </div>
 
           {/* Error */}
           {error && (
