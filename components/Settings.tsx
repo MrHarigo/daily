@@ -616,6 +616,16 @@ function EditHabitForm({ habit, onSave, onCancel }: { habit: Habit; onSave: (upd
           Schedule
         </label>
 
+        {/* Warning about schedule change */}
+        {(scheduleType !== initialScheduleType ||
+          (scheduleType === 'custom' && JSON.stringify(Array.from(customDays).sort()) !== JSON.stringify(Array.from(initialCustomDays).sort()))) && (
+          <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 mb-3">
+            <p className="text-warning text-sm">
+              ⚠️ Changing schedule will recalculate your streak based on the new schedule
+            </p>
+          </div>
+        )}
+
         {/* Radio buttons */}
         <div className="space-y-2 mb-3">
           <label className="flex items-center gap-2 cursor-pointer">
