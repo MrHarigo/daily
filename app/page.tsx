@@ -10,6 +10,7 @@ import { Stats } from '@/components/Stats';
 import { Settings } from '@/components/Settings';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { getTodayLocal } from '@/lib/date-utils';
+import { SESSION_EXPIRED_EVENT } from '@/lib/api';
 
 type Tab = 'today' | 'stats' | 'settings';
 
@@ -27,6 +28,18 @@ export default function Home() {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Handle session expiration (401 responses)
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      // Store session expiration reason for Login component to display
+      sessionStorage.setItem('sessionExpiredReason', 'Your session has expired. Please log in again.');
+      logout();
+    };
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, [logout]);
 
   // Keep activeTabRef in sync with activeTab
   useEffect(() => {
