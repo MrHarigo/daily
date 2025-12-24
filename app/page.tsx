@@ -9,6 +9,7 @@ import { Dashboard } from '@/components/Dashboard';
 import { Stats } from '@/components/Stats';
 import { Settings } from '@/components/Settings';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { getTodayLocal } from '@/lib/date-utils';
 
 type Tab = 'today' | 'stats' | 'settings';
 
@@ -16,7 +17,7 @@ const IDLE_REFRESH_THRESHOLD_MS = 30_000;
 
 export default function Home() {
   const { isAuthenticated, isLoading, checkAuth, logout, fetchDevices } = useAuthStore();
-  const { fetchHabits } = useHabitStore();
+  const { selectedDate, setSelectedDate, fetchHabits } = useHabitStore();
   const { fetchStats } = useStatsStore();
   const [activeTab, setActiveTab] = useState<Tab>('today');
   const activeTabRef = useRef<Tab>(activeTab);
@@ -66,6 +67,13 @@ export default function Home() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         const now = Date.now();
+        const today = getTodayLocal();
+
+        // Auto-switch to today if viewing a past date
+        if (selectedDate !== today && selectedDate < today) {
+          setSelectedDate(today);
+        }
+
         // Only refetch if more than 30 seconds since last refresh
         if (now - lastRefreshRef.current > IDLE_REFRESH_THRESHOLD_MS) {
           lastRefreshRef.current = now;
@@ -76,7 +84,7 @@ export default function Home() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [refetchCurrentTab]);
+  }, [refetchCurrentTab, selectedDate, setSelectedDate]);
 
   if (isLoading) {
     return (
