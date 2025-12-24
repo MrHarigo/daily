@@ -95,10 +95,16 @@ export async function GET(request: NextRequest) {
         dayOffs
       );
 
+      // If streak was frozen, exclude the freeze date to avoid double-counting
+      // (the freeze date is already counted in frozen_streak)
+      const workingDaysForStreak = habit.streak_frozen_at
+        ? scheduledWorkingDays.filter(d => d > habit.streak_frozen_at!)
+        : scheduledWorkingDays;
+
       // Calculate streak since base date (either creation or last schedule change)
       const streakSinceBase = calculateStreak(
         habitCompletions.map(c => ({ date: c.date, completed: c.completed })),
-        scheduledWorkingDays,
+        workingDaysForStreak,
         baseDate,
         todayStr
       );

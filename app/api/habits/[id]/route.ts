@@ -35,9 +35,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       scheduled_days: number[] | null;
       created_at: string;
       streak_frozen_at: string | null;
+      frozen_streak: number;
     }>(
       `SELECT id, scheduled_days, to_char(created_at, 'YYYY-MM-DD') as created_at,
-              to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at
+              to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
+              frozen_streak
        FROM habits WHERE id = $1 AND user_id = $2`,
       [id, auth.userId]
     );
@@ -95,13 +97,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           getTodayLocal()
         );
 
-        // Freeze the streak
-        freezeStreak = (currentHabit.streak_frozen_at ?
-          await queryOne<{ frozen_streak: number }>(
-            'SELECT frozen_streak FROM habits WHERE id = $1',
-            [id]
-          ).then(r => r?.frozen_streak || 0) : 0) + currentStreak;
-
+        // Freeze the streak: add current streak to any existing frozen streak
+        freezeStreak = (currentHabit.frozen_streak || 0) + currentStreak;
         freezeDate = getTodayLocal();
       }
     }
