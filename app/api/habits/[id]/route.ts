@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getScheduledWorkingDays, calculateStreak } from '@/lib/stats-utils';
-import { getTodayLocal } from '@/lib/date-utils';
+import { getTodayLocal, addDays } from '@/lib/date-utils';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -99,7 +99,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
         // Freeze the streak: add current streak to any existing frozen streak
         freezeStreak = (currentHabit.frozen_streak || 0) + currentStreak;
-        freezeDate = getTodayLocal();
+
+        // Freeze at end of previous day to avoid same-day edge case
+        // (if user changes schedule before completing today, today can still count)
+        freezeDate = addDays(getTodayLocal(), -1);
       }
     }
 
