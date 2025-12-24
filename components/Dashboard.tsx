@@ -6,21 +6,14 @@ import { useCalendarStore } from '@/stores/calendarStore';
 import { HabitCard } from '@/components/HabitCard';
 import { DateSelector } from '@/components/DateSelector';
 import { getTodayLocal, formatLocalDate, parseLocalDate } from '@/lib/date-utils';
+import { isScheduledDay } from '@/lib/stats-utils';
 
 /**
- * Check if a habit is scheduled for a given date
+ * Check if a habit is scheduled for a given date string
  */
 function isHabitScheduledForDate(habit: Habit, dateStr: string): boolean {
   const date = parseLocalDate(dateStr);
-  const dayOfWeek = date.getDay();
-
-  // scheduled_days = null means weekdays (Mon-Fri)
-  if (habit.scheduled_days === null || habit.scheduled_days === undefined) {
-    return dayOfWeek >= 1 && dayOfWeek <= 5;
-  }
-
-  // Custom schedule
-  return habit.scheduled_days.includes(dayOfWeek);
+  return isScheduledDay(date, habit.scheduled_days ?? null);
 }
 
 // Track optimistic completion states for instant filtering
