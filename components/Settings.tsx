@@ -619,9 +619,9 @@ function EditHabitForm({ habit, onSave, onCancel }: { habit: Habit; onSave: (upd
         {/* Warning about schedule change */}
         {(scheduleType !== initialScheduleType ||
           (scheduleType === 'custom' && JSON.stringify(Array.from(customDays).sort()) !== JSON.stringify(Array.from(initialCustomDays).sort()))) && (
-          <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 mb-3">
-            <p className="text-warning text-sm">
-              ⚠️ Changing schedule will recalculate your streak based on the new schedule
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-3">
+            <p className="text-blue-400 text-sm">
+              ℹ️ Your current streak will be preserved. The new schedule will apply from today onwards.
             </p>
           </div>
         )}

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
+import { getScheduledWorkingDays, calculateStreak } from '@/lib/stats-utils';
+import { getTodayLocal } from '@/lib/date-utils';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -27,19 +29,103 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
+    // Fetch current habit to check if schedule is changing
+    const currentHabit = await queryOne<{
+      id: string;
+      scheduled_days: number[] | null;
+      created_at: string;
+      streak_frozen_at: string | null;
+    }>(
+      `SELECT id, scheduled_days, to_char(created_at, 'YYYY-MM-DD') as created_at,
+              to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at
+       FROM habits WHERE id = $1 AND user_id = $2`,
+      [id, auth.userId]
+    );
+
+    if (!currentHabit) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    let freezeStreak: number | undefined;
+    let freezeDate: string | undefined;
+
+    // Check if schedule is changing
+    if (scheduled_days !== undefined) {
+      const oldSchedule = currentHabit.scheduled_days;
+      const newSchedule = scheduled_days;
+
+      const scheduleChanged = JSON.stringify(oldSchedule) !== JSON.stringify(newSchedule);
+
+      if (scheduleChanged) {
+        // Calculate current streak before changing schedule
+        const today = new Date();
+        const startDate = new Date(today);
+        const baseDate = currentHabit.streak_frozen_at || currentHabit.created_at;
+        startDate.setDate(today.getDate() - 89);
+
+        const holidaysData = await query<{ date: string }>(
+          `SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`
+        );
+        const dayOffsData = await query<{ date: string }>(
+          `SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs WHERE user_id = $1`,
+          [auth.userId]
+        );
+
+        const holidays = new Set(holidaysData.map(h => h.date));
+        const dayOffs = new Set(dayOffsData.map(d => d.date));
+
+        const scheduledWorkingDays = getScheduledWorkingDays(
+          startDate,
+          today,
+          oldSchedule,
+          holidays,
+          dayOffs
+        );
+
+        const completions = await query<{ date: string; completed: boolean }>(
+          `SELECT to_char(date, 'YYYY-MM-DD') as date, completed
+           FROM habit_completions WHERE habit_id = $1`,
+          [id]
+        );
+
+        const currentStreak = calculateStreak(
+          completions,
+          scheduledWorkingDays,
+          baseDate,
+          getTodayLocal()
+        );
+
+        // Freeze the streak
+        freezeStreak = (currentHabit.streak_frozen_at ?
+          await queryOne<{ frozen_streak: number }>(
+            'SELECT frozen_streak FROM habits WHERE id = $1',
+            [id]
+          ).then(r => r?.frozen_streak || 0) : 0) + currentStreak;
+
+        freezeDate = getTodayLocal();
+      }
+    }
+
     const habit = await queryOne(
-      `UPDATE habits SET name = COALESCE($1, name), type = COALESCE($2, type),
-       target_value = COALESCE($3, target_value), sort_order = COALESCE($4, sort_order),
-       scheduled_days = COALESCE($5, scheduled_days)
-       WHERE id = $6 AND user_id = $7 AND archived_at IS NULL
+      `UPDATE habits SET
+         name = COALESCE($1, name),
+         type = COALESCE($2, type),
+         target_value = COALESCE($3, target_value),
+         sort_order = COALESCE($4, sort_order),
+         scheduled_days = COALESCE($5, scheduled_days),
+         frozen_streak = COALESCE($6, frozen_streak),
+         streak_frozen_at = COALESCE($7::date, streak_frozen_at)
+       WHERE id = $8 AND user_id = $9 AND archived_at IS NULL
        RETURNING id, name, type, target_value, sort_order, scheduled_days,
+                 frozen_streak, to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
                  to_char(created_at, 'YYYY-MM-DD') as created_at`,
-      [name, type, target_value, sort_order, scheduled_days, id, auth.userId]
+      [name, type, target_value, sort_order, scheduled_days, freezeStreak, freezeDate, id, auth.userId]
     );
 
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(habit);
   } catch (error) {
+    console.error('Update habit error:', error);
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
 }

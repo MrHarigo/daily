@@ -14,6 +14,8 @@ export interface Habit {
   paused_at?: string | null;
   archived_at?: string | null;
   scheduled_days?: number[] | null;
+  streak_frozen_at?: string | null;
+  frozen_streak?: number;
 }
 
 export interface HabitCompletion {

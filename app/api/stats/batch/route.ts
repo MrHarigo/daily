@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify ownership and fetch all habits at once
-    const habits = await query<{ id: string; type: string; created_at: string; scheduled_days: number[] | null }>(
-      `SELECT id, type, to_char(created_at, 'YYYY-MM-DD') as created_at, scheduled_days FROM habits WHERE id = ANY($1) AND user_id = $2`,
+    const habits = await query<{ id: string; type: string; created_at: string; scheduled_days: number[] | null; frozen_streak: number; streak_frozen_at: string | null }>(
+      `SELECT id, type, to_char(created_at, 'YYYY-MM-DD') as created_at, scheduled_days, frozen_streak, to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at FROM habits WHERE id = ANY($1) AND user_id = $2`,
       [habitIds, auth.userId]
     );
 
@@ -81,7 +81,10 @@ export async function GET(request: NextRequest) {
 
     for (const habit of habits) {
       const habitCompletions = completionsByHabit.get(habit.id) || [];
-      const createdAt = habit.created_at; // Already formatted as YYYY-MM-DD from query
+
+      // Use streak_frozen_at as base date if it exists, otherwise use created_at
+      const baseDate = habit.streak_frozen_at || habit.created_at;
+      const frozenStreak = habit.frozen_streak || 0;
 
       // Get scheduled working days for THIS habit
       const scheduledWorkingDays = getScheduledWorkingDays(
@@ -92,13 +95,16 @@ export async function GET(request: NextRequest) {
         dayOffs
       );
 
-      // Calculate streak
-      const streak = calculateStreak(
+      // Calculate streak since base date (either creation or last schedule change)
+      const streakSinceBase = calculateStreak(
         habitCompletions.map(c => ({ date: c.date, completed: c.completed })),
         scheduledWorkingDays,
-        createdAt,
+        baseDate,
         todayStr
       );
+
+      // Total streak = frozen streak + streak since base date
+      const streak = frozenStreak + streakSinceBase;
 
       // Total count/time/completions
       let totalTime = 0;
