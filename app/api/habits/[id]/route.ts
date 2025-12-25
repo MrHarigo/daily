@@ -10,6 +10,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const { name, type, target_value, sort_order } = await request.json();
 
+    // Fetch current habit state before updating (to compare if recalculation is needed)
+    const oldHabit = await queryOne<{ type: string; target_value: number | null }>(
+      'SELECT type, target_value FROM habits WHERE id = $1 AND user_id = $2 AND archived_at IS NULL',
+      [id, auth.userId]
+    );
+
+    if (!oldHabit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     const habit = await queryOne(
       `UPDATE habits SET name = COALESCE($1, name), type = COALESCE($2, type),
        target_value = COALESCE($3, target_value), sort_order = COALESCE($4, sort_order)
@@ -21,7 +29,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     // Recalculate completion status for count-based habits when target_value changes
-    if (habit.type === 'count' && target_value !== undefined && target_value !== null) {
+    // Only if: (1) was and still is a count habit, (2) target_value provided, (3) actually changed
+    const shouldRecalculate =
+      oldHabit.type === 'count' &&
+      habit.type === 'count' &&
+      target_value !== undefined &&
+      target_value !== null &&
+      target_value !== oldHabit.target_value;
+
+    if (shouldRecalculate) {
       await query(
         `UPDATE habit_completions
          SET completed = (value >= $1)
