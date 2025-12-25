@@ -19,6 +19,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     );
 
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // Recalculate completion status for count-based habits when target_value changes
+    if (habit.type === 'count' && target_value !== undefined && target_value !== null) {
+      await query(
+        `UPDATE habit_completions
+         SET completed = (value >= $1)
+         WHERE habit_id = $2`,
+        [target_value, id]
+      );
+    }
+
     return NextResponse.json(habit);
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
