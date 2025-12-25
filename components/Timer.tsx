@@ -12,7 +12,9 @@ interface TimerProps {
 
 export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
   const { activeTimers, completions, startTimer, pauseTimer, stopTimer, resetTimer } = useHabitStore();
-  const timer = activeTimers[habit.id];
+  // Only use the timer if it matches the current date (prevents showing paused timers from previous days)
+  const rawTimer = activeTimers[habit.id];
+  const timer = rawTimer?.date === date ? rawTimer : undefined;
 
   const [displayTime, setDisplayTime] = useState(0);
   const intervalRef = useRef<number | null>(null);
