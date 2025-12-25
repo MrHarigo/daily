@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useStatsStore, HabitInfo, HabitStat } from '@/stores/statsStore';
+import { isScheduledDay } from '@/lib/stats-utils';
+import { getTodayLocal, parseLocalDate } from '@/lib/date-utils';
 
 export function Stats() {
   const { overview, habits, habitStats, isLoading, error, fetchStats } = useStatsStore();
@@ -104,6 +106,14 @@ export function Stats() {
             {activeHabits.map((habit) => {
               const stat = habitStats[habit.id];
               if (!stat) return null;
+
+              // Check if today is a scheduled day for this habit
+              const todayDate = parseLocalDate(getTodayLocal());
+              const isTodayScheduled = isScheduledDay(todayDate, habit.scheduled_days ?? null);
+
+              // Only show "at risk" if today is a scheduled day AND not completed
+              const isAtRisk = stat.currentStreak > 0 && !stat.completedToday && isTodayScheduled;
+
               return (
                 <div key={habit.id} className="card">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -118,7 +128,7 @@ export function Stats() {
                           {stat.currentStreak > 0 && !stat.completedToday && <span className="text-gray-500 opacity-50">🔥</span>}
                           {stat.currentStreak}
                         </div>
-                        <div className="text-gray-500 text-xs">{stat.currentStreak > 0 && !stat.completedToday ? 'At risk' : 'Streak'}</div>
+                        <div className="text-gray-500 text-xs">{isAtRisk ? 'At risk' : 'Streak'}</div>
                       </div>
                       <div className="text-center min-w-[80px]">
                         <div className="text-lg font-bold text-accent">{formatTotalValue(habit, stat)}</div>
