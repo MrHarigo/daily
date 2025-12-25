@@ -20,6 +20,9 @@ export function Stats() {
   const archivedHabits = habits.filter(h => h.archived_at);
   const inactiveHabits = [...pausedHabits, ...archivedHabits];
 
+  // Calculate today's date once for all habit schedule checks
+  const todayDate = parseLocalDate(getTodayLocal());
+
   // Show error state if fetch failed
   if (error) {
     return (
@@ -108,7 +111,6 @@ export function Stats() {
               if (!stat) return null;
 
               // Check if today is a scheduled day for this habit
-              const todayDate = parseLocalDate(getTodayLocal());
               const isTodayScheduled = isScheduledDay(todayDate, habit.scheduled_days ?? null);
 
               // Only show "at risk" if today is a scheduled day AND not completed
