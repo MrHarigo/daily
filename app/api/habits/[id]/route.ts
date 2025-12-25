@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
+import { getScheduledWorkingDays, calculateStreak } from '@/lib/stats-utils';
+import { getTodayLocal, addDays } from '@/lib/date-utils';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -8,22 +10,128 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params;
-    const { name, type, target_value, sort_order } = await request.json();
+    let { name, type, target_value, sort_order, scheduled_days } = await request.json();
 
-    // Fetch current habit state before updating (to compare if recalculation is needed)
-    const oldHabit = await queryOne<{ type: string; target_value: number | null }>(
-      'SELECT type, target_value FROM habits WHERE id = $1 AND user_id = $2 AND archived_at IS NULL',
+    // Validate scheduled_days if provided
+    if (scheduled_days !== undefined) {
+      if (scheduled_days !== null) {
+        if (!Array.isArray(scheduled_days)) {
+          return NextResponse.json({ error: 'scheduled_days must be an array' }, { status: 400 });
+        }
+        if (scheduled_days.length === 0) {
+          return NextResponse.json({ error: 'At least one day must be selected' }, { status: 400 });
+        }
+        if (!scheduled_days.every(d => Number.isInteger(d) && d >= 1 && d <= 5)) {
+          return NextResponse.json({ error: 'scheduled_days must contain only weekdays (1-5)' }, { status: 400 });
+        }
+        // Remove duplicates and sort
+        scheduled_days = [...new Set(scheduled_days)].sort();
+      }
+    }
+
+    // Fetch current habit to check if schedule is changing
+    const currentHabit = await queryOne<{
+      id: string;
+      type: string;
+      target_value: number | null;
+      scheduled_days: number[] | null;
+      created_at: string;
+      streak_frozen_at: string | null;
+      frozen_streak: number;
+    }>(
+      `SELECT id, type, target_value, scheduled_days, to_char(created_at, 'YYYY-MM-DD') as created_at,
+              to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
+              frozen_streak
+       FROM habits WHERE id = $1 AND user_id = $2 AND archived_at IS NULL`,
       [id, auth.userId]
     );
 
-    if (!oldHabit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!currentHabit) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
-    const habit = await queryOne<{ id: string; name: string; type: string; target_value: number | null; sort_order: number; created_at: string }>(
-      `UPDATE habits SET name = COALESCE($1, name), type = COALESCE($2, type),
-       target_value = COALESCE($3, target_value), sort_order = COALESCE($4, sort_order)
-       WHERE id = $5 AND user_id = $6 AND archived_at IS NULL
-       RETURNING id, name, type, target_value, sort_order, to_char(created_at, 'YYYY-MM-DD') as created_at`,
-      [name, type, target_value, sort_order, id, auth.userId]
+    let freezeStreak: number | undefined;
+    let freezeDate: string | undefined;
+
+    // Check if schedule is changing
+    if (scheduled_days !== undefined) {
+      const oldSchedule = currentHabit.scheduled_days;
+      const newSchedule = scheduled_days;
+
+      const scheduleChanged = JSON.stringify(oldSchedule) !== JSON.stringify(newSchedule);
+
+      if (scheduleChanged) {
+        // Calculate current streak before changing schedule
+        const today = new Date();
+        const startDate = new Date(today);
+        const baseDate = currentHabit.streak_frozen_at || currentHabit.created_at;
+        startDate.setDate(today.getDate() - 89);
+
+        const holidaysData = await query<{ date: string }>(
+          `SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`
+        );
+        const dayOffsData = await query<{ date: string }>(
+          `SELECT to_char(date, 'YYYY-MM-DD') as date FROM day_offs WHERE user_id = $1`,
+          [auth.userId]
+        );
+
+        const holidays = new Set(holidaysData.map(h => h.date));
+        const dayOffs = new Set(dayOffsData.map(d => d.date));
+
+        const scheduledWorkingDays = getScheduledWorkingDays(
+          startDate,
+          today,
+          oldSchedule,
+          holidays,
+          dayOffs
+        );
+
+        const completions = await query<{ date: string; completed: boolean }>(
+          `SELECT to_char(date, 'YYYY-MM-DD') as date, completed
+           FROM habit_completions WHERE habit_id = $1`,
+          [id]
+        );
+
+        const currentStreak = calculateStreak(
+          completions,
+          scheduledWorkingDays,
+          baseDate,
+          getTodayLocal()
+        );
+
+        // Freeze the streak: add current streak to any existing frozen streak
+        freezeStreak = (currentHabit.frozen_streak || 0) + currentStreak;
+
+        // Freeze at end of previous day to avoid same-day edge case
+        // (if user changes schedule before completing today, today can still count)
+        freezeDate = addDays(getTodayLocal(), -1);
+      }
+    }
+
+    const habit = await queryOne<{
+      id: string;
+      name: string;
+      type: string;
+      target_value: number | null;
+      sort_order: number;
+      scheduled_days: number[] | null;
+      frozen_streak: number;
+      streak_frozen_at: string | null;
+      created_at: string;
+    }>(
+      `UPDATE habits SET
+         name = COALESCE($1, name),
+         type = COALESCE($2, type),
+         target_value = COALESCE($3, target_value),
+         sort_order = COALESCE($4, sort_order),
+         scheduled_days = COALESCE($5, scheduled_days),
+         frozen_streak = COALESCE($6, frozen_streak),
+         streak_frozen_at = COALESCE($7::date, streak_frozen_at)
+       WHERE id = $8 AND user_id = $9 AND archived_at IS NULL
+       RETURNING id, name, type, target_value, sort_order, scheduled_days,
+                 frozen_streak, to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
+                 to_char(created_at, 'YYYY-MM-DD') as created_at`,
+      [name, type, target_value, sort_order, scheduled_days, freezeStreak, freezeDate, id, auth.userId]
     );
 
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -31,11 +139,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Recalculate completion status for count-based habits when target_value changes
     // Only if: (1) was and still is a count habit, (2) target_value provided, (3) actually changed
     const shouldRecalculate =
-      oldHabit.type === 'count' &&
+      currentHabit.type === 'count' &&
       habit.type === 'count' &&
       target_value !== undefined &&
       target_value !== null &&
-      target_value !== oldHabit.target_value;
+      target_value !== currentHabit.target_value;
 
     if (shouldRecalculate) {
       await query(
@@ -48,6 +156,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(habit);
   } catch (error) {
+    console.error('Update habit error:', error);
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
 }
