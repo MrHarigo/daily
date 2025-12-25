@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/db';
+import { query, queryOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getScheduledWorkingDays, calculateStreak } from '@/lib/stats-utils';
 import { getTodayLocal, addDays } from '@/lib/date-utils';
@@ -11,6 +11,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params;
     let { name, type, target_value, sort_order, scheduled_days } = await request.json();
+
+    // Validate target_value if provided
+    if (target_value !== undefined && target_value !== null) {
+      if (!Number.isInteger(target_value) || target_value <= 0) {
+        return NextResponse.json(
+          { error: 'target_value must be a positive integer' },
+          { status: 400 }
+        );
+      }
+    }
 
     // Validate scheduled_days if provided
     if (scheduled_days !== undefined) {
@@ -29,23 +39,33 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Fetch current habit to check if schedule is changing
+    // Fetch current habit to check if schedule is changing and target_value changes
     const currentHabit = await queryOne<{
       id: string;
+      type: string;
+      target_value: number | null;
       scheduled_days: number[] | null;
       created_at: string;
       streak_frozen_at: string | null;
       frozen_streak: number;
     }>(
-      `SELECT id, scheduled_days, to_char(created_at, 'YYYY-MM-DD') as created_at,
+      `SELECT id, type, target_value, scheduled_days, to_char(created_at, 'YYYY-MM-DD') as created_at,
               to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
               frozen_streak
-       FROM habits WHERE id = $1 AND user_id = $2`,
+       FROM habits WHERE id = $1 AND user_id = $2 AND archived_at IS NULL`,
       [id, auth.userId]
     );
 
     if (!currentHabit) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Prevent type changes (to avoid data corruption in habit_completions)
+    if (type !== undefined && type !== currentHabit.type) {
+      return NextResponse.json(
+        { error: 'Changing habit type is not allowed. Create a new habit instead.' },
+        { status: 400 }
+      );
     }
 
     let freezeStreak: number | undefined;
@@ -106,23 +126,62 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    const habit = await queryOne(
-      `UPDATE habits SET
-         name = COALESCE($1, name),
-         type = COALESCE($2, type),
-         target_value = COALESCE($3, target_value),
-         sort_order = COALESCE($4, sort_order),
-         scheduled_days = COALESCE($5, scheduled_days),
-         frozen_streak = COALESCE($6, frozen_streak),
-         streak_frozen_at = COALESCE($7::date, streak_frozen_at)
-       WHERE id = $8 AND user_id = $9 AND archived_at IS NULL
-       RETURNING id, name, type, target_value, sort_order, scheduled_days,
-                 frozen_streak, to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
-                 to_char(created_at, 'YYYY-MM-DD') as created_at`,
-      [name, type, target_value, sort_order, scheduled_days, freezeStreak, freezeDate, id, auth.userId]
-    );
+    // Use transaction to ensure atomic update of habit and completions
+    // This prevents race conditions with concurrent increment/timer operations
+    const habit = await transaction(async (client) => {
+      // First, update the habit
+      const result = await client.query<{
+        id: string;
+        name: string;
+        type: string;
+        target_value: number | null;
+        sort_order: number;
+        scheduled_days: number[] | null;
+        frozen_streak: number;
+        streak_frozen_at: string | null;
+        created_at: string;
+      }>(
+        `UPDATE habits SET
+           name = COALESCE($1, name),
+           type = COALESCE($2, type),
+           target_value = COALESCE($3, target_value),
+           sort_order = COALESCE($4, sort_order),
+           scheduled_days = COALESCE($5, scheduled_days),
+           frozen_streak = COALESCE($6, frozen_streak),
+           streak_frozen_at = COALESCE($7::date, streak_frozen_at)
+         WHERE id = $8 AND user_id = $9 AND archived_at IS NULL
+         RETURNING id, name, type, target_value, sort_order, scheduled_days,
+                   frozen_streak, to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
+                   to_char(created_at, 'YYYY-MM-DD') as created_at`,
+        [name, type, target_value, sort_order, scheduled_days, freezeStreak, freezeDate, id, auth.userId]
+      );
 
-    if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      const updatedHabit = result.rows[0];
+      if (!updatedHabit) {
+        throw new Error('Habit not found');
+      }
+
+      // Recalculate completion status for count-based habits when target_value changes
+      // Only if: (1) was and still is a count habit, (2) target_value provided, (3) actually changed
+      const shouldRecalculate =
+        currentHabit.type === 'count' &&
+        updatedHabit.type === 'count' &&
+        target_value !== undefined &&
+        target_value !== null &&
+        target_value !== currentHabit.target_value;
+
+      if (shouldRecalculate) {
+        await client.query(
+          `UPDATE habit_completions
+           SET completed = (value >= $1)
+           WHERE habit_id = $2`,
+          [target_value, id]
+        );
+      }
+
+      return updatedHabit;
+    });
+
     return NextResponse.json(habit);
   } catch (error) {
     console.error('Update habit error:', error);
@@ -136,19 +195,19 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   try {
     const { id } = await params;
-    
+
     // First verify ownership
     const habit = await queryOne<{ id: string }>(
       'SELECT id FROM habits WHERE id = $1 AND user_id = $2',
       [id, auth.userId]
     );
-    
+
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     await query('DELETE FROM habit_completions WHERE habit_id = $1', [id]);
     await query('DELETE FROM active_timers WHERE habit_id = $1', [id]);
     await query('DELETE FROM habits WHERE id = $1', [id]);
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
