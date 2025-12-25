@@ -18,7 +18,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!oldHabit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const habit = await queryOne(
+    const habit = await queryOne<{ id: string; name: string; type: string; target_value: number | null; sort_order: number; created_at: string }>(
       `UPDATE habits SET name = COALESCE($1, name), type = COALESCE($2, type),
        target_value = COALESCE($3, target_value), sort_order = COALESCE($4, sort_order)
        WHERE id = $5 AND user_id = $6 AND archived_at IS NULL
