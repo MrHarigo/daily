@@ -1,11 +1,20 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useHabitStore } from '@/stores/habitStore';
+import { useHabitStore, Habit } from '@/stores/habitStore';
 import { useCalendarStore } from '@/stores/calendarStore';
 import { HabitCard } from '@/components/HabitCard';
 import { DateSelector } from '@/components/DateSelector';
 import { getTodayLocal, formatLocalDate, parseLocalDate } from '@/lib/date-utils';
+import { isScheduledDay } from '@/lib/stats-utils';
+
+/**
+ * Check if a habit is scheduled for a given date string
+ */
+function isHabitScheduledForDate(habit: Habit, dateStr: string): boolean {
+  const date = parseLocalDate(dateStr);
+  return isScheduledDay(date, habit.scheduled_days ?? null);
+}
 
 // Track optimistic completion states for instant filtering
 type OptimisticCompletion = { completed: boolean; value: number };
@@ -50,7 +59,9 @@ export function Dashboard() {
   const isWorkDay = isWorkingDay(selectedDate);
 
   const habits = getActiveHabits();
-  const activeHabits = habits.filter((h) => h.created_at <= selectedDate);
+  const activeHabits = habits
+    .filter((h) => h.created_at <= selectedDate)
+    .filter((h) => isHabitScheduledForDate(h, selectedDate));
 
   const getCompletion = (habitId: string) => {
     const key = `${habitId}-${selectedDate}`;

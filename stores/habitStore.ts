@@ -13,6 +13,9 @@ export interface Habit {
   created_at: string;
   paused_at?: string | null;
   archived_at?: string | null;
+  scheduled_days?: number[] | null;
+  streak_frozen_at?: string | null;
+  frozen_streak?: number;
 }
 
 export interface HabitCompletion {
@@ -48,7 +51,7 @@ interface HabitState {
   setSelectedDate: (date: string) => void;
   fetchHabits: () => Promise<void>;
   fetchCompletions: (startDate: string, endDate: string) => Promise<void>;
-  createHabit: (name: string, type: HabitType, targetValue?: number) => Promise<void>;
+  createHabit: (name: string, type: HabitType, targetValue?: number, scheduledDays?: number[] | null) => Promise<void>;
   updateHabit: (id: string, updates: Partial<Habit>) => Promise<void>;
   archiveHabit: (id: string) => Promise<void>;
   unarchiveHabit: (id: string) => Promise<void>;
@@ -139,12 +142,13 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     }
   },
 
-  createHabit: async (name, type, targetValue) => {
+  createHabit: async (name, type, targetValue, scheduledDays) => {
     try {
       const habit = await api.post<Habit>('/habits', {
         name,
         type,
         target_value: targetValue,
+        scheduled_days: scheduledDays,
       });
       set((state) => ({
         allHabits: [...state.allHabits, habit],

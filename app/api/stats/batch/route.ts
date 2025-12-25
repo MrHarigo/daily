@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { isWorkingDay, calculateStreak } from '@/lib/stats-utils';
+import { isWorkingDay, calculateStreak, getScheduledWorkingDays } from '@/lib/stats-utils';
 import { getTodayLocal, formatLocalDate } from '@/lib/date-utils';
 
 export async function GET(request: NextRequest) {
@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify ownership and fetch all habits at once
-    const habits = await query<{ id: string; type: string; created_at: string }>(
-      `SELECT id, type, to_char(created_at, 'YYYY-MM-DD') as created_at FROM habits WHERE id = ANY($1) AND user_id = $2`,
+    const habits = await query<{ id: string; type: string; created_at: string; scheduled_days: number[] | null; frozen_streak: number; streak_frozen_at: string | null }>(
+      `SELECT id, type, to_char(created_at, 'YYYY-MM-DD') as created_at, scheduled_days, frozen_streak, to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at FROM habits WHERE id = ANY($1) AND user_id = $2`,
       [habitIds, auth.userId]
     );
 
@@ -56,18 +56,10 @@ export async function GET(request: NextRequest) {
     const holidays = new Set(holidaysData.map(h => h.date));
     const dayOffs = new Set(dayOffsData.map(d => d.date));
 
-    // Calculate working days once (shared for all habits)
-    const today = new Date();
-    const workingDays: string[] = [];
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      if (isWorkingDay(d, holidays, dayOffs)) {
-        workingDays.push(formatLocalDate(d));
-      }
-    }
-
     const todayStr = getTodayLocal();
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 89); // 90 days back
 
     // Group completions by habit
     const completionsByHabit = new Map<string, typeof completions>();
@@ -89,15 +81,36 @@ export async function GET(request: NextRequest) {
 
     for (const habit of habits) {
       const habitCompletions = completionsByHabit.get(habit.id) || [];
-      const createdAt = habit.created_at; // Already formatted as YYYY-MM-DD from query
 
-      // Calculate streak
-      const streak = calculateStreak(
+      // Use streak_frozen_at as base date if it exists, otherwise use created_at
+      const baseDate = habit.streak_frozen_at || habit.created_at;
+      const frozenStreak = habit.frozen_streak || 0;
+
+      // Get scheduled working days for THIS habit
+      const scheduledWorkingDays = getScheduledWorkingDays(
+        startDate,
+        today,
+        habit.scheduled_days,
+        holidays,
+        dayOffs
+      );
+
+      // If streak was frozen, exclude the freeze date to avoid double-counting
+      // (the freeze date is already counted in frozen_streak)
+      const workingDaysForStreak = habit.streak_frozen_at
+        ? scheduledWorkingDays.filter(d => d > habit.streak_frozen_at!)
+        : scheduledWorkingDays;
+
+      // Calculate streak since base date (either creation or last schedule change)
+      const streakSinceBase = calculateStreak(
         habitCompletions.map(c => ({ date: c.date, completed: c.completed })),
-        workingDays,
-        createdAt,
+        workingDaysForStreak,
+        baseDate,
         todayStr
       );
+
+      // Total streak = frozen streak + streak since base date
+      const streak = frozenStreak + streakSinceBase;
 
       // Total count/time/completions
       let totalTime = 0;

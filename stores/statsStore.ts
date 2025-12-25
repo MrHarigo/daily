@@ -22,6 +22,7 @@ export interface HabitInfo {
   type: 'boolean' | 'count' | 'time';
   paused_at?: string | null;
   archived_at?: string | null;
+  scheduled_days?: number[] | null;
 }
 
 interface StatsState {

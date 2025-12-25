@@ -23,6 +23,54 @@ export function isWorkingDay(
 }
 
 /**
+ * Determines if a habit is scheduled for a given date
+ * @param date The date to check
+ * @param scheduledDays Array of weekday numbers (1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri) or null for all weekdays
+ * @returns true if the habit is scheduled for this day of the week
+ */
+export function isScheduledDay(date: Date, scheduledDays: number[] | null): boolean {
+  // null = weekdays default (Mon-Fri)
+  if (scheduledDays === null) {
+    const dayOfWeek = date.getDay();
+    return dayOfWeek >= 1 && dayOfWeek <= 5;
+  }
+
+  // Custom schedule
+  const dayOfWeek = date.getDay();
+  return scheduledDays.includes(dayOfWeek);
+}
+
+/**
+ * Generates a list of scheduled working days (intersection of scheduled days and working days)
+ * @param startDate Start date for the range
+ * @param endDate End date for the range
+ * @param scheduledDays Array of weekday numbers (1=Mon, 5=Fri) or null for all weekdays
+ * @param holidays Set of holiday dates in YYYY-MM-DD format
+ * @param dayOffs Set of day-off dates in YYYY-MM-DD format
+ * @returns Array of date strings in YYYY-MM-DD format that are both scheduled and working days
+ */
+export function getScheduledWorkingDays(
+  startDate: Date,
+  endDate: Date,
+  scheduledDays: number[] | null,
+  holidays: Set<string>,
+  dayOffs: Set<string>
+): string[] {
+  const result: string[] = [];
+  const current = new Date(startDate);
+
+  while (current <= endDate) {
+    // Must be BOTH scheduled AND a working day
+    if (isScheduledDay(current, scheduledDays) && isWorkingDay(current, holidays, dayOffs)) {
+      result.push(formatLocalDate(current));
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return result;
+}
+
+/**
  * Calculates the current streak for a habit
  * @param completions Array of completion records with date and completed status
  * @param workingDays Array of working day dates in YYYY-MM-DD format
