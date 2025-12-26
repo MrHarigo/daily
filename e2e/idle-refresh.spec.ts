@@ -31,7 +31,7 @@ test.describe('Auto-Refresh After Idle', () => {
     await page.waitForLoadState('networkidle');
 
     // Check authentication
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -95,7 +95,7 @@ test.describe('Auto-Refresh After Idle', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -155,7 +155,7 @@ test.describe('Auto-Refresh After Idle', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -210,7 +210,7 @@ test.describe('Auto-Refresh After Idle', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -273,7 +273,7 @@ test.describe('Auto-Refresh After Idle', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();

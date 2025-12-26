@@ -28,7 +28,7 @@ test.describe('Tab Switching', () => {
 
     // Check if we need to authenticate
     // In a real test environment, you'd have test credentials
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
 
     if (isLoginVisible) {
       // For this test to work, you need to be authenticated
@@ -65,7 +65,7 @@ test.describe('Tab Switching', () => {
     await page.waitForLoadState('networkidle');
 
     // Check authentication
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -101,7 +101,7 @@ test.describe('Tab Switching', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -138,7 +138,7 @@ test.describe('Tab Switching', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();

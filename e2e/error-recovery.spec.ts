@@ -30,7 +30,7 @@ test.describe('Error Recovery Flows', () => {
     await page.waitForLoadState('networkidle');
 
     // Check authentication
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Must start authenticated to test session expiration
       test.skip();
@@ -61,7 +61,7 @@ test.describe('Error Recovery Flows', () => {
       expect(hasSessionExpiredMessage).toBe(true);
     } else {
       // At minimum, should be back at login page
-      await expect(page.locator('button:has-text("Sign in with Passkey")')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('button:has-text("Sign in with Touch ID")')).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -69,7 +69,7 @@ test.describe('Error Recovery Flows', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -133,7 +133,7 @@ test.describe('Error Recovery Flows', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -163,7 +163,7 @@ test.describe('Error Recovery Flows', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -209,7 +209,7 @@ test.describe('Error Recovery Flows', () => {
 
     await page.goto('/');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Email")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Continue with email")').isVisible().catch(() => false);
 
     if (!isLoginVisible) {
       // Must start logged out
@@ -218,7 +218,7 @@ test.describe('Error Recovery Flows', () => {
     }
 
     // Start email login
-    await page.click('button:has-text("Sign in with Email")');
+    await page.click('button:has-text("Continue with email")');
     await page.waitForSelector('input[type="email"]');
     await page.fill('input[type="email"]', 'test@example.com');
 
@@ -290,7 +290,7 @@ test.describe('Error Recovery Flows', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -324,7 +324,7 @@ test.describe('Error Recovery Flows', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Passkey")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Sign in with Touch ID")').isVisible().catch(() => false);
     if (isLoginVisible) {
       // Authentication required
       test.skip();
@@ -363,7 +363,7 @@ test.describe('Error Recovery Flows', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const isLoginVisible = await page.locator('button:has-text("Sign in with Email")').isVisible().catch(() => false);
+    const isLoginVisible = await page.locator('button:has-text("Continue with email")').isVisible().catch(() => false);
 
     if (!isLoginVisible) {
       // Testing login errors - must be logged out
@@ -372,13 +372,15 @@ test.describe('Error Recovery Flows', () => {
     }
 
     // Test invalid email error
-    await page.click('button:has-text("Sign in with Email")');
+    await page.click('button:has-text("Continue with email")');
     await page.waitForSelector('input[type="email"]');
 
-    // Try submitting without email
-    await page.click('button:has-text("Send Code")');
+    // Try submitting without email - button should be disabled
+    const sendButton = page.locator('button:has-text("Send verification code")');
+    const isDisabled = await sendButton.isDisabled();
+    expect(isDisabled).toBe(true);
 
-    // Should not proceed (button disabled or validation error)
+    // Should still be on email input
     const stillOnEmail = await page.locator('input[type="email"]').isVisible();
     expect(stillOnEmail).toBe(true);
 

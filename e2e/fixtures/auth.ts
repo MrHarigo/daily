@@ -76,8 +76,8 @@ async function mockWebAuthn(page: Page) {
  */
 async function loginWithPasskey(page: Page) {
   await page.goto('/');
-  await page.waitForSelector('button:has-text("Sign in with Passkey")');
-  await page.click('button:has-text("Sign in with Passkey")');
+  await page.waitForSelector('button:has-text("Sign in with Touch ID")');
+  await page.click('button:has-text("Sign in with Touch ID")');
 
   // Wait for authentication to complete
   await page.waitForSelector('[data-testid="dashboard"]', { timeout: 10000 });
@@ -91,13 +91,13 @@ async function loginWithEmailAndCode(page: Page, email: string, username?: strin
   await page.goto('/');
 
   // Start email login flow
-  await page.waitForSelector('button:has-text("Sign in with Email")');
-  await page.click('button:has-text("Sign in with Email")');
+  await page.waitForSelector('button:has-text("Continue with email")');
+  await page.click('button:has-text("Continue with email")');
 
   // Enter email
   await page.waitForSelector('input[type="email"]');
   await page.fill('input[type="email"]', email);
-  await page.click('button:has-text("Send Code")');
+  await page.click('button:has-text("Send verification code")');
 
   // Enter verification code (in a real test environment, you'd need to fetch this from email)
   // For now, we'll mock the API response or enter a test code
@@ -156,7 +156,7 @@ export const test = base.extend<{
     await page.goto('/');
 
     // Check if we're on the login page or already authenticated
-    const isLoginPage = await page.locator('button:has-text("Sign in with Passkey")').isVisible({ timeout: 2000 }).catch(() => false);
+    const isLoginPage = await page.locator('button:has-text("Sign in with Touch ID")').isVisible({ timeout: 2000 }).catch(() => false);
 
     if (isLoginPage) {
       // Not authenticated, try passkey login
