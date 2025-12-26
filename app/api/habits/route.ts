@@ -33,8 +33,9 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return auth.error;
 
   try {
-    const { name, type = 'boolean', target_value } = await request.json();
-    let { scheduled_days } = await request.json();
+    const body = await request.json();
+    const { name, type = 'boolean', target_value } = body;
+    let { scheduled_days } = body;
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
 
     // Validate scheduled_days

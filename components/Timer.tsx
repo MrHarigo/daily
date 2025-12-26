@@ -19,6 +19,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
   const [displayTime, setDisplayTime] = useState(0);
   const intervalRef = useRef<number | null>(null);
   const [stoppedTime, setStoppedTime] = useState<number | null>(null); // Remember time when stopped
+  const pendingStopRef = useRef(false); // Tracks if stop operation is in flight
 
   // Local optimistic timer state (immediate updates, no startTransition delay)
   const [localTimer, setLocalTimer] = useState<ActiveTimer | null>(null);
@@ -84,9 +85,9 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
   const currentCompletion = completions[completionKey];
   const existingValue = currentCompletion?.value || 0;
 
-  // Clear stoppedTime when server value catches up
+  // Clear stoppedTime when server value catches up (and stop operation completed)
   useEffect(() => {
-    if (stoppedTime !== null && existingValue >= stoppedTime) {
+    if (stoppedTime !== null && existingValue >= stoppedTime && !pendingStopRef.current) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: clearing temporary state when server catches up
       setStoppedTime(null);
     }
@@ -147,6 +148,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
 
     // Remember the current time so it doesn't flash back to old value
     setStoppedTime(displayTime);
+    pendingStopRef.current = true;
 
     // Update immediately
     isLocalOverride.current = true;
@@ -167,6 +169,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
 
     // Sync with server
     await stopTimer(habit.id);
+    pendingStopRef.current = false;
     isLocalOverride.current = false;
   };
 
