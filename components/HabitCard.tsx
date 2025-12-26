@@ -57,6 +57,7 @@ export function HabitCard({ habit, completion, date, disabled, onOptimisticUpdat
   useEffect(() => {
     // Only sync if we're not in the middle of local edits
     if (pendingDeltaRef.current === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: syncing local state with server value
       setLocalValue(serverValue);
     }
   }, [serverValue]);

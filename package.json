@@ -7,7 +7,8 @@
     "build": "npm run db:migrate && next build",
     "start": "next start",
     "lint": "eslint",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "prepare": "test -d .git && ln -sf ../../.github/hooks/pre-commit .git/hooks/pre-commit || true"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -29,8 +30,16 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
+    "lint-staged": "^16.2.7",
     "tailwindcss": "^4",
+    "tsc-files": "^1.1.4",
     "tsx": "^4.19.0",
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "tsc-files --noEmit"
+    ]
   }
 }

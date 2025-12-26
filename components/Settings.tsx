@@ -62,6 +62,7 @@ export function Settings({ onLogout }: SettingsProps) {
         console.error('Failed to archive habit:', error);
       } finally {
         setLoadingOperations((prev) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Intentional: extracting key to remove from object
           const { [habit.id]: _, ...rest } = prev;
           return rest;
         });
@@ -78,6 +79,7 @@ export function Settings({ onLogout }: SettingsProps) {
         console.error('Failed to delete habit:', error);
       } finally {
         setLoadingOperations((prev) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Intentional: extracting key to remove from object
           const { [habit.id]: _, ...rest } = prev;
           return rest;
         });
@@ -98,6 +100,7 @@ export function Settings({ onLogout }: SettingsProps) {
       console.error(`Failed to ${operation} habit:`, error);
     } finally {
       setLoadingOperations((prev) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Intentional: extracting key to remove from object
         const { [habit.id]: _, ...rest } = prev;
         return rest;
       });
@@ -112,6 +115,7 @@ export function Settings({ onLogout }: SettingsProps) {
       console.error('Failed to unarchive habit:', error);
     } finally {
       setLoadingOperations((prev) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Intentional: extracting key to remove from object
         const { [habit.id]: _, ...rest } = prev;
         return rest;
       });

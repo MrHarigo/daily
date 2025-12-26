@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { isWorkingDay, calculateStreak, getScheduledWorkingDays } from '@/lib/stats-utils';
-import { getTodayLocal, formatLocalDate } from '@/lib/date-utils';
+import { calculateStreak, getScheduledWorkingDays } from '@/lib/stats-utils';
+import { getTodayLocal } from '@/lib/date-utils';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();

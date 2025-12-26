@@ -10,7 +10,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params;
-    let { name, type, target_value, sort_order, scheduled_days } = await request.json();
+    const body = await request.json();
+    const { name, type, target_value, sort_order } = body;
+    let { scheduled_days } = body;
 
     // Validate target_value if provided
     if (target_value !== undefined && target_value !== null) {
@@ -210,6 +212,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Failed to delete habit:', error);
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }

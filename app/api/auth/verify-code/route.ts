@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
-import { query, queryOne } from '@/lib/db';
+import { queryOne } from '@/lib/db';
 import { sessionOptions, SessionData } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
