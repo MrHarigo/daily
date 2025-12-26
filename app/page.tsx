@@ -120,7 +120,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" data-testid="app-container">
       {/* Top Navigation */}
       <nav className="sticky top-0 z-50 bg-surface-900/95 backdrop-blur border-b border-surface-700">
         <div className="max-w-5xl mx-auto px-4 lg:px-8">
@@ -148,6 +148,7 @@ export default function Home() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
+                  data-testid={`tab-${tab.id}`}
                   className={`btn-press flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
                     activeTab === tab.id
                       ? 'bg-accent/10 text-accent'
@@ -170,7 +171,9 @@ export default function Home() {
             fallbackTitle="Dashboard Error"
             onReset={() => fetchHabits()}
           >
-            <Dashboard />
+            <div data-testid="dashboard">
+              <Dashboard />
+            </div>
           </ErrorBoundary>
         )}
         {activeTab === 'stats' && (
@@ -178,7 +181,9 @@ export default function Home() {
             fallbackTitle="Stats Error"
             onReset={() => fetchStats()}
           >
-            <Stats />
+            <div data-testid="stats">
+              <Stats />
+            </div>
           </ErrorBoundary>
         )}
         {activeTab === 'settings' && (
@@ -189,7 +194,9 @@ export default function Home() {
               fetchDevices();
             }}
           >
-            <Settings onLogout={logout} />
+            <div data-testid="settings">
+              <Settings onLogout={logout} />
+            </div>
           </ErrorBoundary>
         )}
       </main>

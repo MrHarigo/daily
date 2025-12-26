@@ -33,6 +33,11 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
 # Claude Code
 .claude/settings.local.json
 
