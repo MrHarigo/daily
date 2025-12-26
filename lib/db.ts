@@ -50,3 +50,12 @@ export async function transaction<T>(
     client.release();
   }
 }
+
+/**
+ * Close all database connections in the pool.
+ * Should be called when the script/process is terminating.
+ * Not needed for Next.js API routes (pool is reused).
+ */
+export async function closePool(): Promise<void> {
+  await pool.end();
+}

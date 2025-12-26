@@ -16,12 +16,8 @@ import { config } from 'dotenv';
 config({ path: '.env.local' });
 
 // Now safe to import modules that use process.env
-import { query, queryOne } from '../lib/db';
-
-const TEST_USER = {
-  email: 'e2e-test@example.com',
-  username: 'E2E Test User',
-};
+import { query, queryOne, closePool } from '../lib/db';
+import { TEST_USER } from '../e2e/test-config';
 
 async function seedTestUser() {
   console.log('🌱 Seeding test user for E2E tests...\n');
@@ -109,14 +105,16 @@ async function seedTestUser() {
 // Run if called directly
 if (require.main === module) {
   seedTestUser()
-    .then(() => {
+    .then(async () => {
       console.log('✅ Seeding complete!\n');
+      await closePool();
       process.exit(0);
     })
-    .catch((error) => {
+    .catch(async (error) => {
       console.error('❌ Seeding failed:', error);
+      await closePool();
       process.exit(1);
     });
 }
 
-export { seedTestUser, TEST_USER };
+export { seedTestUser };

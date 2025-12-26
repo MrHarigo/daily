@@ -1,5 +1,6 @@
 import { chromium, FullConfig } from '@playwright/test';
 import path from 'path';
+import { TEST_USER } from './test-config';
 
 /**
  * Automated Global Setup for Playwright tests
@@ -14,7 +15,6 @@ import path from 'path';
 async function globalSetup(config: FullConfig) {
   const { baseURL } = config.projects[0].use;
   const authFile = path.join(__dirname, '.auth', 'user.json');
-  const testUserEmail = 'e2e-test@example.com';
   const serverUrl = baseURL || 'http://localhost:3000';
 
   const browser = await chromium.launch({ headless: true });
@@ -24,7 +24,7 @@ async function globalSetup(config: FullConfig) {
   try {
     console.log('\n🤖 Automated authentication setup...');
     console.log(`   Base URL: ${serverUrl}`);
-    console.log(`   Test user: ${testUserEmail}`);
+    console.log(`   Test user: ${TEST_USER.email}`);
     console.log('   ⏳ Waiting for dev server to start...\n');
 
     // Wait for server to be ready
@@ -63,7 +63,7 @@ async function globalSetup(config: FullConfig) {
 
     // Authenticate using test endpoint
     const loginResponse = await page.request.post('/api/auth/test-login', {
-      data: { email: testUserEmail },
+      data: { email: TEST_USER.email },
     });
 
     if (!loginResponse.ok()) {
