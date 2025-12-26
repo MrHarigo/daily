@@ -1,4 +1,5 @@
 import { Pool } from '@neondatabase/serverless';
+import ws from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -126,6 +127,8 @@ async function migrate() {
   const pool = new Pool({
     connectionString: databaseUrl,
     ssl: { rejectUnauthorized: false },
+    // Required for Node.js environments (CI/CD, scripts)
+    ...(typeof WebSocket === 'undefined' && { webSocketConstructor: ws }),
   });
 
   try {
