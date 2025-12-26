@@ -72,6 +72,39 @@ npm run db:migrate
 npm run dev
 ```
 
+## Development
+
+### Code Quality
+
+This project uses automated code quality checks to maintain consistency:
+
+- **Pre-commit Hook**: Automatically runs ESLint + TypeScript checks before each commit
+  - Installed automatically via `npm install` (runs the `prepare` script)
+  - Prevents commits with lint errors
+  - Takes ~10-30 seconds on full codebase
+  - Bypass if needed: `git commit --no-verify`
+
+- **GitHub Actions CI**: Runs same checks on all PRs and pushes to main
+  - Ensures code quality even if pre-commit hook is bypassed
+  - Blocks merging if checks fail
+
+### Manual Hook Installation
+
+If the pre-commit hook isn't working:
+
+```bash
+ln -sf ../../.github/hooks/pre-commit .git/hooks/pre-commit
+```
+
+See [.github/hooks/README.md](.github/hooks/README.md) for more details.
+
+### Running Checks Manually
+
+```bash
+npm run lint              # ESLint
+npx tsc --noEmit         # TypeScript type checking
+```
+
 ## Deployment
 
 Deploy to Vercel:
