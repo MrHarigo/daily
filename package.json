@@ -8,12 +8,15 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed-test-user": "tsx scripts/seed-test-user.ts",
     "prepare": "test -d .git && ln -sf ../../.github/hooks/pre-commit .git/hooks/pre-commit || true",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:auth": "E2E_AUTHENTICATED=1 playwright test",
-    "test:e2e:auth:ui": "E2E_AUTHENTICATED=1 playwright test --ui"
+    "test:e2e:auth:ui": "E2E_AUTHENTICATED=1 playwright test --ui",
+    "test:e2e:auto": "E2E_AUTHENTICATED=1 E2E_AUTOMATED=1 playwright test",
+    "test:e2e:auto:ui": "E2E_AUTHENTICATED=1 E2E_AUTOMATED=1 playwright test --ui"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

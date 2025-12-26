@@ -10,7 +10,10 @@ export default defineConfig({
   reporter: 'html',
 
   // Global setup for authentication
-  globalSetup: process.env.E2E_AUTHENTICATED ? './e2e/global-setup.ts' : undefined,
+  // Use automated setup if E2E_AUTOMATED=1, otherwise manual setup
+  globalSetup: process.env.E2E_AUTHENTICATED
+    ? (process.env.E2E_AUTOMATED ? './e2e/global-setup-automated.ts' : './e2e/global-setup.ts')
+    : undefined,
 
   use: {
     baseURL: 'http://localhost:3000',
