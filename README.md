@@ -78,10 +78,11 @@ npm run dev
 
 This project uses automated code quality checks to maintain consistency:
 
-- **Pre-commit Hook**: Automatically runs ESLint + TypeScript checks before each commit
+- **Pre-commit Hook**: Automatically runs ESLint + TypeScript checks on staged files before each commit
   - Installed automatically via `npm install` (runs the `prepare` script)
-  - Prevents commits with lint errors
-  - Takes ~10-30 seconds on full codebase
+  - Uses `lint-staged` for fast checks (only staged files)
+  - Takes ~1-5 seconds for most commits
+  - Auto-fixes ESLint issues with `--fix`
   - Bypass if needed: `git commit --no-verify`
 
 - **GitHub Actions CI**: Runs same checks on all PRs and pushes to main

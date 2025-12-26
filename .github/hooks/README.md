@@ -4,7 +4,7 @@ This directory contains git hooks that are automatically installed for all devel
 
 ## Pre-commit Hook
 
-The `pre-commit` hook runs ESLint and TypeScript type checking before every commit to ensure code quality.
+The `pre-commit` hook runs ESLint and TypeScript type checking **on staged files only** before every commit to ensure code quality while maintaining fast commit times.
 
 ### Automatic Installation
 
@@ -28,18 +28,28 @@ git commit --no-verify -m "your message"
 
 **Note:** Use this sparingly! The CI workflow will still catch any issues.
 
-### Performance Considerations
+### Performance
 
-The pre-commit hook runs full linting and type checking on the entire codebase, which can take 10-30 seconds depending on project size.
+The pre-commit hook uses `lint-staged` to check only staged files, providing fast feedback:
 
 **Current behavior:**
-- ✅ Catches all issues before commit
-- ⚠️  Runs on entire codebase (slower)
+- ✅ Only checks staged `.ts` and `.tsx` files
+- ✅ Fast commits: ~1-5 seconds for most changes
+- ✅ Auto-fixes ESLint issues with `--fix`
+- ✅ TypeScript checking via `tsc-files` (faster than full `tsc`)
 
-**Future optimization (not yet implemented):**
-- Consider using `lint-staged` to only check staged files
-- Would reduce commit time to 1-5 seconds for most commits
-- Trade-off: May miss issues in unchanged files that interact with your changes
+**Configuration:**
+See `lint-staged` section in `package.json`:
+```json
+"lint-staged": {
+  "*.{ts,tsx}": [
+    "eslint --fix",
+    "tsc-files --noEmit"
+  ]
+}
+```
+
+**Note:** While this only checks staged files, GitHub Actions CI runs full checks on all files to catch any cross-file issues.
 
 ## CI/CD
 
