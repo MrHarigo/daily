@@ -1,16 +1,19 @@
-import { Pool, PoolClient } from '@neondatabase/serverless';
+import { Pool, PoolClient, neonConfig } from '@neondatabase/serverless';
 import { config } from 'dotenv';
-import ws from 'ws';
+import WebSocket from 'ws';
 
 // Load environment variables before creating the pool
 // This ensures DATABASE_URL is available when running standalone scripts with tsx
 config({ path: '.env.local' });
 
+// Configure WebSocket for Node.js environments (CI/CD, scripts)
+// Browser environments use native WebSocket
+if (typeof global !== 'undefined' && typeof window === 'undefined') {
+  neonConfig.webSocketConstructor = WebSocket;
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Required for Node.js environments (CI/CD, scripts)
-  // Browser environments don't need this
-  ...(typeof WebSocket === 'undefined' && { webSocketConstructor: ws }),
 });
 
 export async function query<T>(text: string, params?: unknown[]): Promise<T[]> {

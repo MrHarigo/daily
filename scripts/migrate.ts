@@ -1,7 +1,10 @@
-import { Pool } from '@neondatabase/serverless';
-import ws from 'ws';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Configure WebSocket for Node.js environments (CI/CD, scripts)
+neonConfig.webSocketConstructor = WebSocket;
 
 // Load .env.local manually (tsx doesn't auto-load it)
 function loadEnv() {
@@ -127,8 +130,6 @@ async function migrate() {
   const pool = new Pool({
     connectionString: databaseUrl,
     ssl: { rejectUnauthorized: false },
-    // Required for Node.js environments (CI/CD, scripts)
-    ...(typeof WebSocket === 'undefined' && { webSocketConstructor: ws }),
   });
 
   try {
