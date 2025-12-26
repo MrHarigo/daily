@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
 
 export default defineConfig({
   testDir: './e2e',
@@ -8,10 +9,15 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
 
+  // Global setup for authentication
+  globalSetup: process.env.E2E_AUTHENTICATED ? './e2e/global-setup.ts' : undefined,
+
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // Use saved auth state if authenticated mode is enabled
+    storageState: process.env.E2E_AUTHENTICATED ? path.join(__dirname, 'e2e', '.auth', 'user.json') : undefined,
   },
 
   projects: [
