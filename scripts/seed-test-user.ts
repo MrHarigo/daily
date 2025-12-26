@@ -10,6 +10,12 @@
  *   npm run db:seed-test-user
  */
 
+// CRITICAL: Load environment variables BEFORE any imports that use them
+// This must be at the very top to prevent import hoisting issues
+import { config } from 'dotenv';
+config({ path: '.env.local' });
+
+// Now safe to import modules that use process.env
 import { query, queryOne } from '../lib/db';
 
 const TEST_USER = {

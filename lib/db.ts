@@ -1,4 +1,9 @@
 import { Pool, PoolClient } from '@neondatabase/serverless';
+import { config } from 'dotenv';
+
+// Load environment variables before creating the pool
+// This ensures DATABASE_URL is available when running standalone scripts with tsx
+config({ path: '.env.local' });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

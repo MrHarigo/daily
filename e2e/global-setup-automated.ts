@@ -15,18 +15,38 @@ async function globalSetup(config: FullConfig) {
   const { baseURL } = config.projects[0].use;
   const authFile = path.join(__dirname, '.auth', 'user.json');
   const testUserEmail = 'e2e-test@example.com';
+  const serverUrl = baseURL || 'http://localhost:3000';
 
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ baseURL: serverUrl });
   const page = await context.newPage();
 
   try {
     console.log('\n🤖 Automated authentication setup...');
-    console.log(`   Base URL: ${baseURL || 'http://localhost:3000'}`);
-    console.log(`   Test user: ${testUserEmail}\n`);
+    console.log(`   Base URL: ${serverUrl}`);
+    console.log(`   Test user: ${testUserEmail}`);
+    console.log('   ⏳ Waiting for dev server to start...\n');
 
-    // Navigate to the app
-    await page.goto(baseURL || 'http://localhost:3000');
+    // Wait for server to be ready
+    let serverReady = false;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 seconds max wait
+
+    while (!serverReady && attempts < maxAttempts) {
+      try {
+        await page.goto(serverUrl, { timeout: 1000 });
+        serverReady = true;
+        console.log('   ✅ Dev server is ready');
+      } catch {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw new Error(
+            'Dev server did not start in time. Please run "npm run dev" manually.'
+          );
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
 
     // Check if test login endpoint is available
     const checkResponse = await page.request.get('/api/auth/test-login');
