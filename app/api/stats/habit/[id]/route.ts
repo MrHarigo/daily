@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { isWorkingDay, calculateStreak, getScheduledWorkingDays } from '@/lib/stats-utils';
+import { calculateStreak, getScheduledWorkingDays } from '@/lib/stats-utils';
 import { getTodayLocal, formatLocalDate } from '@/lib/date-utils';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -10,7 +10,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params;
-    let { name, type, target_value, sort_order, scheduled_days } = await request.json();
+    const { name, type, target_value, sort_order } = await request.json();
+    let { scheduled_days } = await request.json();
 
     // Validate target_value if provided
     if (target_value !== undefined && target_value !== null) {
@@ -209,7 +210,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await query('DELETE FROM habits WHERE id = $1', [id]);
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }

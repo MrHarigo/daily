@@ -18,7 +18,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
 
   const [displayTime, setDisplayTime] = useState(0);
   const intervalRef = useRef<number | null>(null);
-  const stoppedTimeRef = useRef<number | null>(null); // Remember time when stopped
+  const [stoppedTime, setStoppedTime] = useState<number | null>(null); // Remember time when stopped
 
   // Local optimistic timer state (immediate updates, no startTransition delay)
   const [localTimer, setLocalTimer] = useState<ActiveTimer | null>(null);
@@ -27,6 +27,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
   // Sync local timer with server timer when server responds
   useEffect(() => {
     if (!isLocalOverride.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: syncing local state with server timer
       setLocalTimer(timer ?? null);
     }
   }, [timer]);
@@ -83,23 +84,26 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
   const currentCompletion = completions[completionKey];
   const existingValue = currentCompletion?.value || 0;
 
-  // Clear stoppedTimeRef when server value catches up
-  if (stoppedTimeRef.current !== null && existingValue >= stoppedTimeRef.current) {
-    stoppedTimeRef.current = null;
-  }
+  // Clear stoppedTime when server value catches up
+  useEffect(() => {
+    if (stoppedTime !== null && existingValue >= stoppedTime) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: clearing temporary state when server catches up
+      setStoppedTime(null);
+    }
+  }, [existingValue, stoppedTime]);
 
   // When timer is active, show displayTime
-  // When stopped, show stoppedTimeRef (until server catches up) or existingValue
+  // When stopped, show stoppedTime (until server catches up) or existingValue
   const totalTime = optimisticTimer
     ? displayTime
-    : (stoppedTimeRef.current ?? existingValue);
+    : (stoppedTime ?? existingValue);
   const progress = targetSeconds > 0 ? Math.min((totalTime / targetSeconds) * 100, 100) : 0;
 
   const handleStartTimer = async () => {
     // If resuming a paused timer, use its accumulated time
-    // If starting fresh, use existingValue (saved completion) or stoppedTimeRef
+    // If starting fresh, use existingValue (saved completion) or stoppedTime
     const accumulatedSeconds = optimisticTimer?.accumulated_seconds
-      ?? stoppedTimeRef.current
+      ?? stoppedTime
       ?? existingValue;
 
     // Set displayTime immediately to prevent flicker on first click
@@ -114,7 +118,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
       accumulated_seconds: accumulatedSeconds,
       is_running: true,
     });
-    stoppedTimeRef.current = null;
+    setStoppedTime(null);
 
     // Sync with server
     await startTimer(habit.id, date);
@@ -142,7 +146,7 @@ export function Timer({ habit, date, onOptimisticUpdate }: TimerProps) {
     const willComplete = targetSeconds > 0 && totalTime >= targetSeconds && !wasCompleted;
 
     // Remember the current time so it doesn't flash back to old value
-    stoppedTimeRef.current = displayTime;
+    setStoppedTime(displayTime);
 
     // Update immediately
     isLocalOverride.current = true;

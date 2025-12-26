@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { isWorkingDay, calculateStreak, getScheduledWorkingDays } from '@/lib/stats-utils';
+import { calculateStreak, getScheduledWorkingDays } from '@/lib/stats-utils';
 import { getTodayLocal, formatLocalDate } from '@/lib/date-utils';
 
 export async function GET() {

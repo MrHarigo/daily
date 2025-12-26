@@ -1,0 +1,22 @@
+#!/bin/bash
+# Pre-commit hook to run linting
+
+echo "Running lint checks..."
+
+# Run ESLint
+npm run lint
+LINT_EXIT_CODE=$?
+
+# Run TypeScript type checking
+echo "Running TypeScript type checking..."
+npx tsc --noEmit
+TSC_EXIT_CODE=$?
+
+# Check if either failed
+if [ $LINT_EXIT_CODE -ne 0 ] || [ $TSC_EXIT_CODE -ne 0 ]; then
+  echo "❌ Lint or type check failed. Please fix the errors before committing."
+  exit 1
+fi
+
+echo "✅ All checks passed!"
+exit 0
