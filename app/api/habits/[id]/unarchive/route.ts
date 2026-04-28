@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
+import { HABIT_RETURNING_COLS, HabitRow } from '@/lib/habits';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -8,14 +9,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const { id } = await params;
-    const result = await queryOne(
-      'UPDATE habits SET archived_at = NULL WHERE id = $1 AND user_id = $2 RETURNING id',
+    const habit = await queryOne<HabitRow>(
+      `UPDATE habits SET archived_at = NULL WHERE id = $1 AND user_id = $2 AND archived_at IS NOT NULL
+       RETURNING ${HABIT_RETURNING_COLS}`,
       [id, auth.userId]
     );
-    if (!result) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return NextResponse.json({ success: true });
+    if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(habit);
   } catch (error) {
-    console.error('Unarchive error:', error);
-    return NextResponse.json({ error: 'Failed to unarchive' }, { status: 500 });
+    console.error('Unarchive habit error:', error);
+    return NextResponse.json({ error: 'Failed to unarchive habit' }, { status: 500 });
   }
 }
