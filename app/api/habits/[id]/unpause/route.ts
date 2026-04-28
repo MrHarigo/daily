@@ -10,7 +10,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const habit = await queryOne(
       `UPDATE habits SET paused_at = NULL WHERE id = $1 AND user_id = $2 AND archived_at IS NULL AND paused_at IS NOT NULL
-       RETURNING id, name, type, target_value, sort_order, to_char(created_at, 'YYYY-MM-DD') as created_at, paused_at`,
+       RETURNING id, name, type, target_value, sort_order, to_char(created_at, 'YYYY-MM-DD') as created_at,
+       paused_at, archived_at, scheduled_days, streak_frozen_at, frozen_streak`,
       [id, auth.userId]
     );
     if (!habit) return NextResponse.json({ error: 'Not found' }, { status: 404 });
