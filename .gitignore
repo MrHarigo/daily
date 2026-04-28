@@ -33,7 +33,13 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+e2e/.auth/
+
 # Claude Code
 .claude/settings.local.json
 
-tsconfig.tsbuildinfo
+*.tsbuildinfo
