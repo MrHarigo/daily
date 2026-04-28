@@ -142,6 +142,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         frozen_streak: number;
         streak_frozen_at: string | null;
         created_at: string;
+        paused_at: string | null;
+        archived_at: string | null;
       }>(
         `UPDATE habits SET
            name = COALESCE($1, name),
@@ -154,7 +156,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
          WHERE id = $8 AND user_id = $9 AND archived_at IS NULL
          RETURNING id, name, type, target_value, sort_order, scheduled_days,
                    frozen_streak, to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
-                   to_char(created_at, 'YYYY-MM-DD') as created_at`,
+                   to_char(created_at, 'YYYY-MM-DD') as created_at,
+                   to_char(paused_at, 'YYYY-MM-DD"T"HH24:MI:SS') as paused_at,
+                   to_char(archived_at, 'YYYY-MM-DD"T"HH24:MI:SS') as archived_at`,
         [name, type, target_value, sort_order, scheduled_days, freezeStreak, freezeDate, id, auth.userId]
       );
 

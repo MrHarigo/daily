@@ -6,9 +6,9 @@ import { HABIT_RETURNING_COLS } from '@/lib/habits';
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
   if ('error' in auth) return auth.error;
-  const { id } = await params;
 
   try {
+    const { id } = await params;
     const habit = await queryOne(
       `UPDATE habits SET paused_at = NOW() WHERE id = $1 AND user_id = $2 AND archived_at IS NULL AND paused_at IS NULL
        RETURNING ${HABIT_RETURNING_COLS}`,
