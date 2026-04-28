@@ -3,6 +3,7 @@ import { query, queryOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getScheduledWorkingDays, calculateStreak } from '@/lib/stats-utils';
 import { getTodayLocal, addDays } from '@/lib/date-utils';
+import { HABIT_RETURNING_COLS } from '@/lib/habits';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -154,11 +155,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
            frozen_streak = COALESCE($6, frozen_streak),
            streak_frozen_at = COALESCE($7::date, streak_frozen_at)
          WHERE id = $8 AND user_id = $9 AND archived_at IS NULL
-         RETURNING id, name, type, target_value, sort_order, scheduled_days,
-                   frozen_streak, to_char(streak_frozen_at, 'YYYY-MM-DD') as streak_frozen_at,
-                   to_char(created_at, 'YYYY-MM-DD') as created_at,
-                   to_char(paused_at, 'YYYY-MM-DD"T"HH24:MI:SS') as paused_at,
-                   to_char(archived_at, 'YYYY-MM-DD"T"HH24:MI:SS') as archived_at`,
+         RETURNING ${HABIT_RETURNING_COLS}`,
         [name, type, target_value, sort_order, scheduled_days, freezeStreak, freezeDate, id, auth.userId]
       );
 
