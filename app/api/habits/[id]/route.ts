@@ -3,7 +3,7 @@ import { query, queryOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getScheduledWorkingDays, calculateStreak } from '@/lib/stats-utils';
 import { getTodayLocal, addDays } from '@/lib/date-utils';
-import { HABIT_RETURNING_COLS } from '@/lib/habits';
+import { HABIT_RETURNING_COLS, HabitRow } from '@/lib/habits';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -133,19 +133,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // This prevents race conditions with concurrent increment/timer operations
     const habit = await transaction(async (client) => {
       // First, update the habit
-      const result = await client.query<{
-        id: string;
-        name: string;
-        type: string;
-        target_value: number | null;
-        sort_order: number;
-        scheduled_days: number[] | null;
-        frozen_streak: number;
-        streak_frozen_at: string | null;
-        created_at: string;
-        paused_at: string | null;
-        archived_at: string | null;
-      }>(
+      const result = await client.query<HabitRow>(
         `UPDATE habits SET
            name = COALESCE($1, name),
            type = COALESCE($2, type),
