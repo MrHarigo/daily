@@ -1,18 +1,9 @@
 import { create } from 'zustand';
 import { api } from '@/lib/api';
+import type { EventRow } from '@/lib/events';
 
 export type EventColor = string;
-
-export interface EventRow {
-  id: string;
-  user_id: string;
-  title: string;
-  emoji: string;
-  target_date: string;
-  color: EventColor;
-  note: string | null;
-  created_at: string;
-}
+export type { EventRow };
 
 export interface EventInput {
   title: string;

@@ -41,7 +41,11 @@ export function Countdowns() {
     // `dark` keeps the shadcn-token primitives (dialog/popover/calendar render
     // in portals) on the countdown palette regardless of the host theme.
     <div className="dark">
-      {events.length === 0 && !isLoading ? (
+      {isLoading && events.length === 0 ? (
+        <div className="flex items-center justify-center py-24">
+          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : events.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}

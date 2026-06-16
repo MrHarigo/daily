@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/db';
+import { queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-
-const RETURNING_COLS = `id, user_id, title, emoji,
-       to_char(target_date, 'YYYY-MM-DD') as target_date,
-       color, note,
-       to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS') as created_at`;
+import { EVENT_RETURNING_COLS, MAX_TITLE_LENGTH, UUID_REGEX, isValidColor } from '@/lib/events';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -13,8 +9,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params;
+    if (!UUID_REGEX.test(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
+
     const body = await request.json();
     const { title, emoji, target_date, color, note } = body;
+
+    if (title !== undefined && title !== null && title.trim().length > MAX_TITLE_LENGTH) {
+      return NextResponse.json({ error: `Title must be ${MAX_TITLE_LENGTH} characters or fewer` }, { status: 400 });
+    }
+    if (color && !isValidColor(color)) {
+      return NextResponse.json({ error: 'Invalid color' }, { status: 400 });
+    }
 
     const event = await queryOne(
       `UPDATE events SET
@@ -24,7 +31,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
          color       = COALESCE($4, color),
          note        = $5
        WHERE id = $6 AND user_id = $7
-       RETURNING ${RETURNING_COLS}`,
+       RETURNING ${EVENT_RETURNING_COLS}`,
       [
         title?.trim() ?? null,
         emoji ?? null,
@@ -50,14 +57,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   try {
     const { id } = await params;
+    if (!UUID_REGEX.test(id)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
-    const event = await queryOne<{ id: string }>(
-      'SELECT id FROM events WHERE id = $1 AND user_id = $2',
+    const deleted = await queryOne<{ id: string }>(
+      'DELETE FROM events WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, auth.userId]
     );
-    if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!deleted) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    await query('DELETE FROM events WHERE id = $1', [id]);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Delete event error:', error);

@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import {
+  differenceInCalendarDays,
+  differenceInYears,
+  differenceInMonths,
+  differenceInWeeks,
+  differenceInDays,
+  addYears,
+  addMonths,
+  addWeeks,
+} from 'date-fns'
 import { EventRow } from '@/stores/eventStore'
 
 const PRESETS: Record<string, { gradient: string; accent: string; badge: string }> = {
@@ -15,22 +25,17 @@ const PRESETS: Record<string, { gradient: string; accent: string; badge: string 
 function isHex(color: string) { return color.startsWith('#') }
 
 function getCountdown(targetDate: string) {
-  const now = new Date()
   const target = new Date(targetDate + 'T00:00:00')
-  const diff = target.getTime() - now.getTime()
+  const todayMidnight = new Date()
+  todayMidnight.setHours(0, 0, 0, 0)
 
-  if (diff <= 0) {
-    const isPast = diff < -86400000
-    return { days: 0, hours: 0, minutes: 0, seconds: 0, isPast, isToday: !isPast }
-  }
-
+  // Calendar-day based: an event is "today" only on its actual date, "past"
+  // strictly after it. Avoids the elapsed-milliseconds drift of the original.
+  const dayDiff = differenceInCalendarDays(target, todayMidnight)
   return {
-    days: Math.floor(diff / 86400000),
-    hours: Math.floor((diff % 86400000) / 3600000),
-    minutes: Math.floor((diff % 3600000) / 60000),
-    seconds: Math.floor((diff % 60000) / 1000),
-    isPast: false,
-    isToday: false,
+    isToday: dayDiff === 0,
+    isPast: dayDiff < 0,
+    units: dayDiff > 0 ? breakdownUnits(todayMidnight, target) : [],
   }
 }
 
@@ -46,11 +51,16 @@ interface EventCardProps {
   onEdit: (event: EventRow) => void
 }
 
-function breakdownUnits(totalDays: number) {
-  const years  = Math.floor(totalDays / 365)
-  const months = Math.floor((totalDays - years * 365) / 30)
-  const weeks  = Math.floor((totalDays - years * 365 - months * 30) / 7)
-  const days   = totalDays - years * 365 - months * 30 - weeks * 7
+// Calendar-accurate breakdown via successive subtraction, so month/year
+// lengths (and leap years) are respected instead of fixed 30/365-day buckets.
+function breakdownUnits(from: Date, to: Date) {
+  const years = differenceInYears(to, from)
+  let cursor = addYears(from, years)
+  const months = differenceInMonths(to, cursor)
+  cursor = addMonths(cursor, months)
+  const weeks = differenceInWeeks(to, cursor)
+  cursor = addWeeks(cursor, weeks)
+  const days = differenceInDays(to, cursor)
   return [
     { value: years,  unit: '年' },
     { value: months, unit: '月' },
@@ -115,7 +125,7 @@ export default function EventCard({ event, index, onEdit }: EventCardProps) {
           <span className="text-2xl font-bold text-zinc-600">Past</span>
         ) : (
           <>
-            {breakdownUnits(countdown.days).map(({ value, unit }, i, arr) => (
+            {countdown.units.map(({ value, unit }, i, arr) => (
                 <div key={unit} className="flex items-center gap-4">
                   <div className="flex items-center gap-1">
                     <span

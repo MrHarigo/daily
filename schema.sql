@@ -105,4 +105,4 @@ CREATE INDEX IF NOT EXISTS idx_habits_archived ON habits(archived_at);
 CREATE INDEX IF NOT EXISTS idx_habit_completions_habit_date ON habit_completions(habit_id, date);
 CREATE INDEX IF NOT EXISTS idx_habit_completions_date ON habit_completions(date);
 CREATE INDEX IF NOT EXISTS idx_day_offs_user_id ON day_offs(user_id);
-CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
+CREATE INDEX IF NOT EXISTS idx_events_user_target ON events(user_id, target_date);
