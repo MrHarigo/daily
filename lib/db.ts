@@ -1,4 +1,16 @@
-import { Pool, PoolClient } from '@neondatabase/serverless';
+import { Pool, PoolClient, neonConfig } from '@neondatabase/serverless';
+import { config } from 'dotenv';
+import WebSocket from 'ws';
+
+// Load environment variables before creating the pool
+// This ensures DATABASE_URL is available when running standalone scripts with tsx
+config({ path: '.env.local' });
+
+// Configure WebSocket for Node.js environments (CI/CD, scripts)
+// Browser environments use native WebSocket
+if (typeof global !== 'undefined' && typeof window === 'undefined') {
+  neonConfig.webSocketConstructor = WebSocket;
+}
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -37,4 +49,13 @@ export async function transaction<T>(
   } finally {
     client.release();
   }
+}
+
+/**
+ * Close all database connections in the pool.
+ * Should be called when the script/process is terminating.
+ * Not needed for Next.js API routes (pool is reused).
+ */
+export async function closePool(): Promise<void> {
+  await pool.end();
 }
