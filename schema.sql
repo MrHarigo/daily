@@ -84,6 +84,18 @@ CREATE TABLE IF NOT EXISTS day_offs (
   UNIQUE(user_id, date)
 );
 
+-- Countdown events (per user)
+CREATE TABLE IF NOT EXISTS events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  emoji VARCHAR(16) NOT NULL DEFAULT '🎯',
+  target_date DATE NOT NULL,
+  color VARCHAR(32) NOT NULL DEFAULT 'violet',
+  note TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
 CREATE INDEX IF NOT EXISTS idx_verification_codes_expires ON verification_codes(expires_at);
@@ -93,3 +105,4 @@ CREATE INDEX IF NOT EXISTS idx_habits_archived ON habits(archived_at);
 CREATE INDEX IF NOT EXISTS idx_habit_completions_habit_date ON habit_completions(habit_id, date);
 CREATE INDEX IF NOT EXISTS idx_habit_completions_date ON habit_completions(date);
 CREATE INDEX IF NOT EXISTS idx_day_offs_user_id ON day_offs(user_id);
+CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
