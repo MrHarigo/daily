@@ -59,6 +59,7 @@ export function Countdowns() {
           </div>
           <button
             onClick={handleAddClick}
+            aria-label="Add milestone"
             className="mt-2 w-full rounded-2xl border border-dashed border-white/8 py-4 text-zinc-700 hover:text-zinc-400 hover:border-white/15 transition-all text-sm"
           >
             +
@@ -78,6 +79,7 @@ export function Countdowns() {
           </AnimatePresence>
           <button
             onClick={handleAddClick}
+            aria-label="Add milestone"
             className="w-full rounded-2xl border border-dashed border-white/8 py-4 text-zinc-700 hover:text-zinc-400 hover:border-white/15 transition-all text-sm"
           >
             +

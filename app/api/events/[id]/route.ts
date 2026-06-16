@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { EVENT_RETURNING_COLS, MAX_TITLE_LENGTH, UUID_REGEX, isValidColor } from '@/lib/events';
+import {
+  EVENT_RETURNING_COLS,
+  MAX_TITLE_LENGTH,
+  MAX_NOTE_LENGTH,
+  MAX_EMOJI_LENGTH,
+  UUID_REGEX,
+  isValidColor,
+  isValidDateString,
+} from '@/lib/events';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -19,8 +27,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (title !== undefined && title !== null && title.trim().length > MAX_TITLE_LENGTH) {
       return NextResponse.json({ error: `Title must be ${MAX_TITLE_LENGTH} characters or fewer` }, { status: 400 });
     }
+    // An explicit empty/invalid target_date would fail the ::date cast; a
+    // null/undefined is fine (COALESCE keeps the existing value).
+    if (target_date !== undefined && target_date !== null && !isValidDateString(target_date)) {
+      return NextResponse.json({ error: 'Invalid target date' }, { status: 400 });
+    }
     if (color && !isValidColor(color)) {
       return NextResponse.json({ error: 'Invalid color' }, { status: 400 });
+    }
+    if (emoji && [...emoji].length > MAX_EMOJI_LENGTH) {
+      return NextResponse.json({ error: 'Invalid emoji' }, { status: 400 });
+    }
+    if (note && note.trim().length > MAX_NOTE_LENGTH) {
+      return NextResponse.json({ error: `Note must be ${MAX_NOTE_LENGTH} characters or fewer` }, { status: 400 });
     }
 
     const event = await queryOne(

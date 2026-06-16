@@ -25,7 +25,7 @@ interface EventState {
 }
 
 const byDate = (a: EventRow, b: EventRow) =>
-  new Date(a.target_date).getTime() - new Date(b.target_date).getTime();
+  new Date(a.target_date + 'T00:00:00').getTime() - new Date(b.target_date + 'T00:00:00').getTime();
 
 export const useEventStore = create<EventState>((set, get) => ({
   events: [],
@@ -50,7 +50,6 @@ export const useEventStore = create<EventState>((set, get) => ({
     // Optimistic insert with a temporary row, reconciled on success.
     const tempEvent: EventRow = {
       id: `temp-${Date.now()}`,
-      user_id: '',
       created_at: new Date().toISOString(),
       note: data.note || null,
       ...data,

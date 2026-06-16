@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { EventRow, EventColor } from '@/stores/eventStore'
+import { MAX_TITLE_LENGTH, MAX_NOTE_LENGTH } from '@/lib/events'
 
 const EMOJIS = [
   '🎯','🚗','✈️','🏠','💍','🎓','🎉','🏖️','🎭','🏆',
@@ -47,6 +48,7 @@ export default function AddEventModal({ open, onOpenChange, editingEvent, onSubm
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const pickerRef = useRef<HTMLDivElement>(null)
@@ -75,6 +77,7 @@ export default function AddEventModal({ open, onOpenChange, editingEvent, onSubm
 
   useEffect(() => {
     setPickerOpen(false)
+    setError('')
   }, [open])
 
   useEffect(() => {
@@ -97,9 +100,12 @@ export default function AddEventModal({ open, onOpenChange, editingEvent, onSubm
     e.preventDefault()
     if (!title.trim() || !targetDate) return
     setLoading(true)
+    setError('')
     try {
       await onSubmit({ title: title.trim(), emoji, target_date: targetDate, color, note: note.trim() || undefined })
       onOpenChange(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -157,6 +163,7 @@ export default function AddEventModal({ open, onOpenChange, editingEvent, onSubm
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Getting a car..."
+              maxLength={MAX_TITLE_LENGTH}
               className="bg-zinc-800/80 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20"
               required
             />
@@ -246,21 +253,31 @@ export default function AddEventModal({ open, onOpenChange, editingEvent, onSubm
               onChange={(e) => setNote(e.target.value)}
               placeholder="Any extra details..."
               rows={2}
+              maxLength={MAX_NOTE_LENGTH}
               className="bg-zinc-800/80 border-white/10 text-white placeholder:text-zinc-600 focus-visible:ring-white/20 resize-none"
             />
           </div>
 
+          {error && (
+            <p className="text-sm text-rose-400" role="alert">{error}</p>
+          )}
+
+          {/* Footer: Delete (edit only) on the left; Cancel + Save always on
+              the right, so button positions stay consistent across modes. */}
           <div className="flex gap-3 pt-1">
-            {editingEvent && onDelete ? (
+            {editingEvent && onDelete && (
               <Button
                 type="button"
                 variant="ghost"
                 disabled={deleting}
                 onClick={async () => {
                   setDeleting(true)
+                  setError('')
                   try {
                     await onDelete(editingEvent.id)
                     onOpenChange(false)
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Failed to delete. Please try again.')
                   } finally {
                     setDeleting(false)
                   }
@@ -269,27 +286,16 @@ export default function AddEventModal({ open, onOpenChange, editingEvent, onSubm
               >
                 {deleting ? 'Deleting…' : 'Delete'}
               </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-                className="text-zinc-400 hover:text-white hover:bg-white/5"
-              >
-                Cancel
-              </Button>
             )}
             <div className="flex-1" />
-            {editingEvent && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-                className="text-zinc-400 hover:text-white hover:bg-white/5"
-              >
-                Cancel
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              className="text-zinc-400 hover:text-white hover:bg-white/5"
+            >
+              Cancel
+            </Button>
             <Button
               type="submit"
               disabled={loading || !title.trim() || !targetDate}

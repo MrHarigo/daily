@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { EVENT_RETURNING_COLS, MAX_TITLE_LENGTH, isValidColor } from '@/lib/events';
+import {
+  EVENT_RETURNING_COLS,
+  MAX_TITLE_LENGTH,
+  MAX_NOTE_LENGTH,
+  MAX_EMOJI_LENGTH,
+  isValidColor,
+  isValidDateString,
+} from '@/lib/events';
 
 export async function GET() {
   const auth = await requireAuth();
@@ -39,8 +46,17 @@ export async function POST(request: NextRequest) {
     if (!target_date) {
       return NextResponse.json({ error: 'Target date required' }, { status: 400 });
     }
+    if (!isValidDateString(target_date)) {
+      return NextResponse.json({ error: 'Invalid target date' }, { status: 400 });
+    }
     if (color && !isValidColor(color)) {
       return NextResponse.json({ error: 'Invalid color' }, { status: 400 });
+    }
+    if (emoji && [...emoji].length > MAX_EMOJI_LENGTH) {
+      return NextResponse.json({ error: 'Invalid emoji' }, { status: 400 });
+    }
+    if (note && note.trim().length > MAX_NOTE_LENGTH) {
+      return NextResponse.json({ error: `Note must be ${MAX_NOTE_LENGTH} characters or fewer` }, { status: 400 });
     }
 
     const event = await queryOne(

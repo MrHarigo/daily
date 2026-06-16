@@ -75,9 +75,17 @@ export default function EventCard({ event, index, onEdit }: EventCardProps) {
   const hex = isHex(event.color)
 
   useEffect(() => {
-    const interval = setInterval(() => setCountdown(getCountdown(event.target_date)), 1000)
+    // Once an event is today or in the past the display is static — no need
+    // to keep re-evaluating. Only tick while it's still counting down, and
+    // stop as soon as it crosses into "today".
+    if (countdown.isPast || countdown.isToday) return
+    const interval = setInterval(() => {
+      const next = getCountdown(event.target_date)
+      setCountdown(next)
+      if (next.isPast || next.isToday) clearInterval(interval)
+    }, 1000)
     return () => clearInterval(interval)
-  }, [event.target_date])
+  }, [event.target_date, countdown.isPast, countdown.isToday])
 
   const cardStyle = hex
     ? { background: `linear-gradient(to right, ${event.color}18, transparent), rgb(24 24 27 / 0.5)` }
