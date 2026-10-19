@@ -41,14 +41,24 @@ function beep() {
 
 function notify(next: Phase) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  new Notification(next === 'break' ? 'Focus session done' : 'Break over', {
-    body: next === 'break' ? 'Time for a break.' : 'Back to work.',
-  });
+  try {
+    new Notification(next === 'break' ? 'Focus session done' : 'Break over', {
+      body: next === 'break' ? 'Time for a break.' : 'Back to work.',
+    });
+  } catch {
+    // Android Chrome throws "Illegal constructor"; it only supports notifications via a service worker
+  }
+}
+
+function toDrafts(state: PomodoroState) {
+  return { work: String(state.work), break: String(state.break) };
 }
 
 export function Pomodoro() {
   const [state, setState] = useState(loadState);
   const [now, setNow] = useState(Date.now);
+  // Raw input text, so the field can be emptied while typing; saved on blur
+  const [drafts, setDrafts] = useState(() => toDrafts(state));
 
   const running = state.endAt !== null;
   const remaining = state.endAt !== null ? Math.max(0, state.endAt - now) : state.left;
@@ -57,20 +67,36 @@ export function Pomodoro() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
+  // Another open tab of the app changed the timer
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      const next = loadState();
+      setState(next);
+      setDrafts(toDrafts(next));
+      setNow(Date.now());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Display only; Chrome throttles this to once a minute in hidden tabs
   useEffect(() => {
     if (state.endAt === null) return;
-    const endAt = state.endAt;
-    const id = setInterval(() => {
-      const t = Date.now();
-      setNow(t);
-      if (t >= endAt) {
-        const next: Phase = state.phase === 'work' ? 'break' : 'work';
-        setState({ ...state, phase: next, endAt: null, left: state[next] * 60_000 });
-        beep();
-        notify(next);
-      }
-    }, 1000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
+  }, [state.endAt]);
+
+  // A single timeout for the phase end isn't hit by Chrome's heavy background throttling, so the alarm is on time
+  useEffect(() => {
+    if (state.endAt === null) return;
+    const id = setTimeout(() => {
+      const next: Phase = state.phase === 'work' ? 'break' : 'work';
+      setState({ ...state, phase: next, endAt: null, left: state[next] * 60_000 });
+      beep();
+      notify(next);
+    }, state.endAt - Date.now());
+    return () => clearTimeout(id);
   }, [state]);
 
   useEffect(() => {
@@ -97,8 +123,11 @@ export function Pomodoro() {
     setState({ ...state, phase, endAt: null, left: state[phase] * 60_000 });
   }
 
-  function setLength(phase: Phase, minutes: number) {
-    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 180) return;
+  function commitLength(phase: Phase) {
+    const parsed = Number(drafts[phase]);
+    const minutes = Number.isInteger(parsed) && parsed >= 1 && parsed <= 180 ? parsed : state[phase];
+    setDrafts({ ...drafts, [phase]: String(minutes) });
+    if (minutes === state[phase]) return;
     setState({ ...state, [phase]: minutes, left: phase === state.phase ? minutes * 60_000 : state.left });
   }
 
@@ -138,9 +167,10 @@ export function Pomodoro() {
               type="number"
               min={1}
               max={180}
-              value={state[p]}
+              value={drafts[p]}
               disabled={running}
-              onChange={(e) => setLength(p, e.target.valueAsNumber)}
+              onChange={(e) => setDrafts({ ...drafts, [p]: e.target.value })}
+              onBlur={() => commitLength(p)}
               className="input"
             />
           </label>
