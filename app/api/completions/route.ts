@@ -11,9 +11,11 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     if (!startDate || !endDate) return NextResponse.json({ error: 'Dates required' }, { status: 400 });
     const completions = await query(
-      `SELECT id, habit_id, to_char(date, 'YYYY-MM-DD') as date, value, completed
-       FROM habit_completions WHERE date >= $1 AND date <= $2`,
-      [startDate, endDate]
+      `SELECT hc.id, hc.habit_id, to_char(hc.date, 'YYYY-MM-DD') as date, hc.value, hc.completed
+       FROM habit_completions hc
+       INNER JOIN habits h ON hc.habit_id = h.id
+       WHERE h.user_id = $3 AND hc.date >= $1 AND hc.date <= $2`,
+      [startDate, endDate, auth.userId]
     );
     return NextResponse.json(completions);
   } catch (error) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne, transaction } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { getScheduledWorkingDays, calculateStreak } from '@/lib/stats-utils';
+import { currentStreak } from '@/lib/stats-utils';
 import { getTodayLocal, addDays } from '@/lib/date-utils';
 import { HABIT_RETURNING_COLS, HabitRow } from '@/lib/habits';
 
@@ -83,11 +83,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       if (scheduleChanged) {
         // Calculate current streak before changing schedule
-        const today = new Date();
-        const startDate = new Date(today);
-        const baseDate = currentHabit.streak_frozen_at || currentHabit.created_at;
-        startDate.setDate(today.getDate() - 89);
-
         const holidaysData = await query<{ date: string }>(
           `SELECT to_char(date, 'YYYY-MM-DD') as date FROM holidays`
         );
@@ -99,29 +94,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const holidays = new Set(holidaysData.map(h => h.date));
         const dayOffs = new Set(dayOffsData.map(d => d.date));
 
-        const scheduledWorkingDays = getScheduledWorkingDays(
-          startDate,
-          today,
-          oldSchedule,
-          holidays,
-          dayOffs
-        );
-
         const completions = await query<{ date: string; completed: boolean }>(
           `SELECT to_char(date, 'YYYY-MM-DD') as date, completed
            FROM habit_completions WHERE habit_id = $1`,
           [id]
         );
 
-        const currentStreak = calculateStreak(
-          completions,
-          scheduledWorkingDays,
-          baseDate,
-          getTodayLocal()
-        );
-
-        // Freeze the streak: add current streak to any existing frozen streak
-        freezeStreak = (currentHabit.frozen_streak || 0) + currentStreak;
+        // Freeze the streak (includes any existing frozen streak)
+        freezeStreak = currentStreak(currentHabit, completions, holidays, dayOffs, getTodayLocal());
 
         // Freeze at end of previous day to avoid same-day edge case
         // (if user changes schedule before completing today, today can still count)

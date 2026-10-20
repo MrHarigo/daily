@@ -2,7 +2,7 @@
  * Shared utilities for stats calculation
  */
 
-import { formatLocalDate } from '@/lib/date-utils';
+import { formatLocalDate, parseLocalDate, addDays } from '@/lib/date-utils';
 
 /**
  * Determines if a given date is a working day
@@ -109,4 +109,156 @@ export function calculateStreak(
     else break;
   }
   return streak;
+}
+
+export interface StreakHabit {
+  created_at: string; // YYYY-MM-DD
+  scheduled_days: number[] | null;
+  frozen_streak: number | null;
+  streak_frozen_at: string | null; // YYYY-MM-DD
+}
+
+/**
+ * Current streak: frozen streak (from before the last schedule change) plus the streak since then.
+ * Walks back as far as the base date, so long streaks are not cut off.
+ */
+export function currentStreak(
+  habit: StreakHabit,
+  completions: { date: string; completed: boolean }[],
+  holidays: Set<string>,
+  dayOffs: Set<string>,
+  todayStr: string
+): number {
+  const baseDate = habit.streak_frozen_at || habit.created_at;
+  const workingDays = getScheduledWorkingDays(
+    parseLocalDate(baseDate),
+    parseLocalDate(todayStr),
+    habit.scheduled_days,
+    holidays,
+    dayOffs
+  );
+  // The freeze date is already counted in frozen_streak
+  const workingDaysForStreak = habit.streak_frozen_at
+    ? workingDays.filter(d => d > habit.streak_frozen_at!)
+    : workingDays;
+  return (habit.frozen_streak || 0) + calculateStreak(completions, workingDaysForStreak, baseDate, todayStr);
+}
+
+export interface Tally {
+  done: number;
+  scheduled: number;
+}
+
+export interface StatsDay {
+  date: string;
+  value: number;
+  completed: boolean;
+  scheduled: boolean;
+}
+
+export interface HabitStats {
+  currentStreak: number;
+  bestStreak: number;
+  completedToday: boolean;
+  scheduledToday: boolean;
+  totalCompletions: number;
+  totalValue: number;
+  range: Tally;
+  prevRange: Tally;
+  byWeekday: Tally[]; // index 0 = Mon ... 4 = Fri
+  days: StatsDay[]; // every weekday in the range since the habit was created
+}
+
+/**
+ * All stats for one habit over [from, today], plus the same-length period before it.
+ * Today only counts towards rates once it is completed, so a pending day is never a miss.
+ */
+export function computeHabitStats(
+  habit: StreakHabit,
+  completions: { date: string; value: number; completed: boolean }[],
+  holidays: Set<string>,
+  dayOffs: Set<string>,
+  from: string,
+  todayStr: string
+): HabitStats {
+  const byDate = new Map(completions.map(c => [c.date, c]));
+  const isDone = (d: string) => !!byDate.get(d)?.completed;
+
+  // shortcut: past days are judged against the current schedule (old schedules aren't stored),
+  // so best streak can undercount before a schedule change; it never drops below the current streak.
+  const scheduledDays = getScheduledWorkingDays(
+    parseLocalDate(habit.created_at),
+    parseLocalDate(todayStr),
+    habit.scheduled_days,
+    holidays,
+    dayOffs
+  );
+  const scheduledSet = new Set(scheduledDays);
+
+  const streak = currentStreak(habit, completions, holidays, dayOffs, todayStr);
+  let bestStreak = streak;
+  let run = 0;
+  for (const d of scheduledDays) {
+    if (isDone(d)) bestStreak = Math.max(bestStreak, ++run);
+    else if (d !== todayStr) run = 0;
+  }
+
+  const prevFrom = addDays(from, -(daysBetween(from, todayStr) + 1));
+  const prevTo = addDays(from, -1);
+  const range: Tally = { done: 0, scheduled: 0 };
+  const prevRange: Tally = { done: 0, scheduled: 0 };
+  const byWeekday: Tally[] = Array.from({ length: 5 }, () => ({ done: 0, scheduled: 0 }));
+  for (const d of scheduledDays) {
+    if (d === todayStr && !isDone(d)) continue;
+    const done = isDone(d) ? 1 : 0;
+    if (d >= from) {
+      range.scheduled++;
+      range.done += done;
+      const wd = byWeekday[parseLocalDate(d).getDay() - 1];
+      wd.scheduled++;
+      wd.done += done;
+    } else if (d >= prevFrom && d <= prevTo) {
+      prevRange.scheduled++;
+      prevRange.done += done;
+    }
+  }
+
+  const days: StatsDay[] = [];
+  const start = from > habit.created_at ? from : habit.created_at;
+  for (let d = start; d <= todayStr; d = addDays(d, 1)) {
+    const dow = parseLocalDate(d).getDay();
+    if (dow === 0 || dow === 6) continue;
+    const c = byDate.get(d);
+    days.push({ date: d, value: c?.value ?? 0, completed: !!c?.completed, scheduled: scheduledSet.has(d) });
+  }
+
+  let totalCompletions = 0;
+  let totalValue = 0;
+  for (const c of completions) {
+    if (c.completed) totalCompletions++;
+    totalValue += c.value;
+  }
+
+  return {
+    currentStreak: streak,
+    bestStreak,
+    completedToday: isDone(todayStr),
+    scheduledToday: scheduledSet.has(todayStr),
+    totalCompletions,
+    totalValue,
+    range,
+    prevRange,
+    byWeekday,
+    days,
+  };
+}
+
+/** Whole days from a to b (YYYY-MM-DD), DST-safe. */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((Date.UTC(...ymd(b)) - Date.UTC(...ymd(a))) / 86_400_000);
+}
+
+function ymd(s: string): [number, number, number] {
+  const [y, m, d] = s.split('-').map(Number);
+  return [y, m - 1, d];
 }

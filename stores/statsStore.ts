@@ -1,84 +1,60 @@
 import { create } from 'zustand';
 import { api } from '@/lib/api';
+import { getTodayLocal } from '@/lib/date-utils';
+import type { HabitStats } from '@/lib/stats-utils';
+import type { Habit } from '@/stores/habitStore';
 
-export interface OverviewStats {
-  longestStreak: number;
-  completedToday: boolean;
-  totalCompletions: number;
-  totalHabits: number;
+export type { HabitStats, StatsDay, Tally } from '@/lib/stats-utils';
+
+export type StatsHabit = Habit & { stats: HabitStats };
+
+export interface StatsData {
+  today: string;
+  from: string;
+  offDays: string[];
+  habits: StatsHabit[];
 }
 
-export interface HabitStat {
-  currentStreak: number;
-  completedToday: boolean;
-  totalCompletions: number;
-  totalTime?: number;
-  totalCount?: number;
-}
-
-export interface HabitInfo {
-  id: string;
-  name: string;
-  type: 'boolean' | 'count' | 'time';
-  paused_at?: string | null;
-  archived_at?: string | null;
-  scheduled_days?: number[] | null;
-}
+// Range length in days ending today; 0 = all time
+export type StatsRange = 7 | 30 | 90 | 365 | 0;
 
 interface StatsState {
-  overview: OverviewStats | null;
-  habits: HabitInfo[];
-  habitStats: Record<string, HabitStat>;
+  data: StatsData | null;
+  range: StatsRange;
   isLoading: boolean;
   error: string | null;
 
   fetchStats: () => Promise<void>;
+  setRange: (range: StatsRange) => void;
 }
 
 export const useStatsStore = create<StatsState>((set, get) => ({
-  overview: null,
-  habits: [],
-  habitStats: {},
+  data: null,
+  range: 30,
   isLoading: false,
   error: null,
 
   fetchStats: async () => {
-    const state = get();
-
-    // Simple race condition prevention: skip if already loading
-    if (state.isLoading) return;
+    const { range } = get();
+    set({ isLoading: true, error: null });
 
     try {
-      set({ isLoading: true, error: null });
-
-      const [overviewData, habitsData] = await Promise.all([
-        api.get<OverviewStats>('/stats/overview'),
-        api.get<HabitInfo[]>('/habits?includeAll=true'),
-      ]);
-
-      // Fetch habit stats in a single batch request
-      let habitStats: Record<string, HabitStat> = {};
-      if (habitsData.length > 0) {
-        try {
-          const habitIds = habitsData.map(h => h.id).join(',');
-          habitStats = await api.get<Record<string, HabitStat>>(`/stats/batch?habitIds=${habitIds}`);
-        } catch (e) {
-          console.error('Failed to fetch batch stats:', e);
-        }
-      }
-
-      set({
-        overview: overviewData,
-        habits: habitsData,
-        habitStats,
-        isLoading: false,
-      });
+      const data = await api.get<StatsData>(`/stats?today=${getTodayLocal()}&days=${range}`);
+      // Drop the response if the range changed while it was in flight
+      if (get().range === range) set({ data, isLoading: false });
     } catch (error) {
       console.error('Failed to fetch stats:', error);
-      set({
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch stats'
-      });
+      if (get().range === range) {
+        set({
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'Failed to fetch stats',
+        });
+      }
     }
+  },
+
+  setRange: (range) => {
+    set({ range });
+    get().fetchStats();
   },
 }));
