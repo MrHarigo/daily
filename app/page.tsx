@@ -10,11 +10,12 @@ import { Stats } from '@/components/Stats';
 import { Settings } from '@/components/Settings';
 import { Countdowns } from '@/components/Countdowns';
 import { Pomodoro } from '@/components/Pomodoro';
+import { Tasks } from '@/components/Tasks';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { getTodayLocal } from '@/lib/date-utils';
 import { SESSION_EXPIRED_EVENT } from '@/lib/api';
 
-type Tab = 'today' | 'pomodoro' | 'stats' | 'settings' | 'countdowns';
+type Tab = 'today' | 'pomodoro' | 'stats' | 'settings' | 'countdowns' | 'tasks';
 
 const IDLE_REFRESH_THRESHOLD_MS = 30_000;
 
@@ -150,6 +151,11 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 )},
+                { id: 'tasks' as const, label: 'Dev Tasks', icon: (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                  </svg>
+                )},
                 { id: 'settings' as const, label: 'Settings', icon: (
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -161,14 +167,15 @@ export default function Home() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   data-testid={`tab-${tab.id}`}
-                  className={`btn-press flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                  aria-label={tab.label}
+                  title={tab.label}
+                  className={`btn-press flex items-center px-3 py-2 rounded-lg font-medium transition-all ${
                     activeTab === tab.id
                       ? 'bg-accent/10 text-accent'
                       : 'text-gray-400 hover:text-gray-200 hover:bg-surface-800'
                   }`}
                 >
                   {tab.icon}
-                  <span className="hidden sm:inline">{tab.label}</span>
                 </button>
               ))}
             </div>
@@ -207,6 +214,11 @@ export default function Home() {
         {activeTab === 'countdowns' && (
           <ErrorBoundary fallbackTitle="Countdowns Error">
             <Countdowns />
+          </ErrorBoundary>
+        )}
+        {activeTab === 'tasks' && (
+          <ErrorBoundary fallbackTitle="Dev Tasks Error">
+            <Tasks />
           </ErrorBoundary>
         )}
         {activeTab === 'settings' && (
