@@ -16,7 +16,18 @@ async function snap(page: Page, label: string): Promise<Step> {
   return { label, url: page.url(), buttons: [...new Set(buttons)].slice(0, 40), shot };
 }
 
-// Spike: drive a Meetup event page from Vercel. With MEETUP_STORAGE_STATE set, it's
+// "a=1; b=2" (a Cookie request header copied from Chrome DevTools) -> Playwright cookies
+function parseCookieHeader(header: string) {
+  return header.split(';').map((pair) => pair.trim()).filter(Boolean).map((pair) => {
+    const i = pair.indexOf('=');
+    return {
+      name: pair.slice(0, i), value: pair.slice(i + 1),
+      domain: '.meetup.com', path: '/', secure: true, sameSite: 'Lax' as const,
+    };
+  }).filter((c) => c.name);
+}
+
+// Spike: drive a Meetup event page from Vercel. With MEETUP_COOKIE set, it's
 // logged in as me. ?click=Attend&click=Submit clicks those buttons in order and
 // returns a page with a screenshot and the visible buttons after every step.
 // No app auth: previews sit behind Vercel's login and this branch is never merged.
@@ -28,7 +39,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Only https://www.meetup.com/ URLs' }, { status: 400 });
   }
   const clicks = params.getAll('click');
-  const stateEnv = process.env.MEETUP_STORAGE_STATE;
+  const cookieHeader = process.env.MEETUP_COOKIE;
 
   const started = Date.now();
   const steps: Step[] = [];
@@ -49,8 +60,8 @@ export async function GET(request: NextRequest) {
       userAgent: `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${majorVersion}.0.0.0 Safari/537.36`,
       locale: 'en-US',
       viewport: { width: 1280, height: 900 },
-      storageState: stateEnv ? JSON.parse(Buffer.from(stateEnv, 'base64').toString('utf-8')) : undefined,
     });
+    if (cookieHeader) await context.addCookies(parseCookieHeader(cookieHeader));
     const page = await context.newPage();
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -74,7 +85,7 @@ export async function GET(request: NextRequest) {
 
   const html = `<!doctype html><meta charset="utf-8"><title>Meetup spike</title>
 <body style="font-family:system-ui;background:#111;color:#eee;max-width:1000px;margin:auto;padding:16px">
-<p>${esc(url)}<br>session: ${stateEnv ? 'MEETUP_STORAGE_STATE set' : 'none (logged out)'} · ${Date.now() - started} ms · node ${process.version}</p>
+<p>${esc(url)}<br>session: ${cookieHeader ? `MEETUP_COOKIE set (${parseCookieHeader(cookieHeader).length} cookies)` : 'none (logged out)'} · ${Date.now() - started} ms · node ${process.version}</p>
 ${error ? `<pre style="color:#f88;white-space:pre-wrap">${esc(error)}</pre>` : ''}
 ${steps.map((s) => `<h3>${esc(s.label)}</h3><p>${esc(s.url)}</p>
 <p>buttons: ${s.buttons.map((b) => `<code>${esc(b)}</code>`).join(' · ')}</p>
