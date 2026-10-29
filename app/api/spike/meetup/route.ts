@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import chromium from '@sparticuz/chromium';
-import { chromium as playwright, type Browser } from 'playwright-core';
+import type { Browser } from 'playwright-core';
 
 export const maxDuration = 60;
 
@@ -19,6 +18,9 @@ export async function GET(request: NextRequest) {
   const started = Date.now();
   let browser: Browser | undefined;
   try {
+    // Imported here so a failing import is reported instead of crashing the function
+    const { default: chromium } = await import('@sparticuz/chromium');
+    const { chromium: playwright } = await import('playwright-core');
     browser = await playwright.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
