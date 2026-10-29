@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import chromium from '@sparticuz/chromium';
-import { chromium as playwright } from 'playwright-core';
+import { chromium as playwright, type Browser } from 'playwright-core';
 
 export const maxDuration = 60;
 
@@ -17,13 +17,13 @@ export async function GET(request: NextRequest) {
   }
 
   const started = Date.now();
-  const browser = await playwright.launch({
-    args: chromium.args,
-    executablePath: await chromium.executablePath(),
-    headless: true,
-  });
-
+  let browser: Browser | undefined;
   try {
+    browser = await playwright.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
     const majorVersion = browser.version().split('.')[0];
     const page = await browser.newPage({
       // The default headless user agent says "HeadlessChrome", an easy bot signal
@@ -53,8 +53,11 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Meetup spike error:', error);
-    return NextResponse.json({ error: String(error), ms: Date.now() - started }, { status: 500 });
+    return NextResponse.json(
+      { error: String(error), stack: (error as Error)?.stack, node: process.version, ms: Date.now() - started },
+      { status: 500 }
+    );
   } finally {
-    await browser.close();
+    await browser?.close();
   }
 }
