@@ -43,3 +43,5 @@ e2e/.auth/
 .claude/settings.local.json
 
 *.tsbuildinfo
+.vercel
+.env*

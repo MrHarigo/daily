@@ -20,10 +20,10 @@ async function snap(page: Page, label: string): Promise<Step> {
 function parseCookieHeader(header: string) {
   return header.split(';').map((pair) => pair.trim()).filter(Boolean).map((pair) => {
     const i = pair.indexOf('=');
-    return {
-      name: pair.slice(0, i), value: pair.slice(i + 1),
-      domain: '.meetup.com', path: '/', secure: true, sameSite: 'Lax' as const,
-    };
+    const name = pair.slice(0, i);
+    // __Host- cookies must be host-only (no domain), so pin them to the exact origin
+    const scope = name.startsWith('__Host-') ? { url: 'https://www.meetup.com' } : { domain: '.meetup.com', path: '/' };
+    return { name, value: pair.slice(i + 1), ...scope, secure: true, sameSite: 'Lax' as const };
   }).filter((c) => c.name);
 }
 
@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
 
   const started = Date.now();
   const steps: Step[] = [];
+  const rejectedCookies: string[] = [];
   let error: string | null = null;
   let browser: Browser | undefined;
   try {
@@ -61,7 +62,10 @@ export async function GET(request: NextRequest) {
       locale: 'en-US',
       viewport: { width: 1280, height: 900 },
     });
-    if (cookieHeader) await context.addCookies(parseCookieHeader(cookieHeader));
+    // One at a time: a single invalid cookie otherwise rejects the whole batch
+    for (const cookie of cookieHeader ? parseCookieHeader(cookieHeader) : []) {
+      await context.addCookies([cookie]).catch(() => rejectedCookies.push(cookie.name));
+    }
     const page = await context.newPage();
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -85,7 +89,7 @@ export async function GET(request: NextRequest) {
 
   const html = `<!doctype html><meta charset="utf-8"><title>Meetup spike</title>
 <body style="font-family:system-ui;background:#111;color:#eee;max-width:1000px;margin:auto;padding:16px">
-<p>${esc(url)}<br>session: ${cookieHeader ? `MEETUP_COOKIE set (${parseCookieHeader(cookieHeader).length} cookies)` : 'none (logged out)'} · ${Date.now() - started} ms · node ${process.version}</p>
+<p>${esc(url)}<br>session: ${cookieHeader ? `MEETUP_COOKIE set (${parseCookieHeader(cookieHeader).length} cookies${rejectedCookies.length ? `, rejected: ${esc(rejectedCookies.join(', '))}` : ''})` : 'none (logged out)'} · ${Date.now() - started} ms · node ${process.version}</p>
 ${error ? `<pre style="color:#f88;white-space:pre-wrap">${esc(error)}</pre>` : ''}
 ${steps.map((s) => `<h3>${esc(s.label)}</h3><p>${esc(s.url)}</p>
 <p>buttons: ${s.buttons.map((b) => `<code>${esc(b)}</code>`).join(' · ')}</p>
