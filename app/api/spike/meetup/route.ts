@@ -76,6 +76,10 @@ export async function GET(request: NextRequest) {
     steps.push(await snap(page, 'loaded'));
 
     for (const name of clicks) {
+      // Never buy anything: the Meetup+ upsell's "Continue" starts a paid subscription
+      if (await page.getByText('Join Meetup+').isVisible() && name !== 'Continue with free plan') {
+        throw new Error(`Refused to click "${name}" while the Meetup+ upsell is open`);
+      }
       const target = page.getByRole('button', { name, exact: true })
         .or(page.getByRole('link', { name, exact: true }))
         .first();
