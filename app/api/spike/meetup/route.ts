@@ -70,6 +70,9 @@ export async function GET(request: NextRequest) {
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+    // The RSVP bar renders after hydration, later than networkidle
+    await page.getByRole('button', { name: /attend|waitlist|rsvp|going/i }).first()
+      .waitFor({ timeout: 15_000 }).catch(() => {});
     steps.push(await snap(page, 'loaded'));
 
     for (const name of clicks) {
