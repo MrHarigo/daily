@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import chromium from '@sparticuz/chromium';
 import { chromium as playwright } from 'playwright-core';
-import { requireAuth } from '@/lib/auth';
 
 export const maxDuration = 60;
 
@@ -9,10 +8,8 @@ const DEFAULT_EVENT = 'https://www.meetup.com/west-tokyo-badminton-club/events/3
 
 // Spike (no Meetup login): can headless Chromium on Vercel open a Meetup event
 // page without a bot check, and find the Attend button? ?shot=1 returns a screenshot.
+// No app auth: previews sit behind Vercel's login and this branch is never merged.
 export async function GET(request: NextRequest) {
-  const auth = await requireAuth();
-  if ('error' in auth) return auth.error;
-
   const url = request.nextUrl.searchParams.get('url') ?? DEFAULT_EVENT;
   // Only Meetup pages: this route drives a real browser, don't let it fetch arbitrary URLs
   if (!/^https:\/\/www\.meetup\.com\/[^\s]*$/.test(url)) {
