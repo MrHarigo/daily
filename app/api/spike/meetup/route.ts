@@ -1,21 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Browser } from 'playwright-core';
+import type { Browser, Page } from 'playwright-core';
 
 export const maxDuration = 60;
 
 const DEFAULT_EVENT = 'https://www.meetup.com/west-tokyo-badminton-club/events/316690671/';
 
-// Spike (no Meetup login): can headless Chromium on Vercel open a Meetup event
-// page without a bot check, and find the Attend button? ?shot=1 returns a screenshot.
+type Step = { label: string; url: string; buttons: string[]; shot: string };
+
+const esc = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+async function snap(page: Page, label: string): Promise<Step> {
+  const buttons = (await page.getByRole('button').allInnerTexts()).map((t) => t.trim()).filter(Boolean);
+  const shot = (await page.screenshot({ type: 'jpeg', quality: 60 })).toString('base64');
+  return { label, url: page.url(), buttons: [...new Set(buttons)].slice(0, 40), shot };
+}
+
+// Spike: drive a Meetup event page from Vercel. With MEETUP_STORAGE_STATE set, it's
+// logged in as me. ?click=Attend&click=Submit clicks those buttons in order and
+// returns a page with a screenshot and the visible buttons after every step.
 // No app auth: previews sit behind Vercel's login and this branch is never merged.
 export async function GET(request: NextRequest) {
-  const url = request.nextUrl.searchParams.get('url') ?? DEFAULT_EVENT;
+  const params = request.nextUrl.searchParams;
+  const url = params.get('url') ?? DEFAULT_EVENT;
   // Only Meetup pages: this route drives a real browser, don't let it fetch arbitrary URLs
   if (!/^https:\/\/www\.meetup\.com\/[^\s]*$/.test(url)) {
     return NextResponse.json({ error: 'Only https://www.meetup.com/ URLs' }, { status: 400 });
   }
+  const clicks = params.getAll('click');
+  const stateEnv = process.env.MEETUP_STORAGE_STATE;
 
   const started = Date.now();
+  const steps: Step[] = [];
+  let error: string | null = null;
   let browser: Browser | undefined;
   try {
     // Imported here so a failing import is reported instead of crashing the function
@@ -27,39 +44,41 @@ export async function GET(request: NextRequest) {
       headless: true,
     });
     const majorVersion = browser.version().split('.')[0];
-    const page = await browser.newPage({
+    const context = await browser.newContext({
       // The default headless user agent says "HeadlessChrome", an easy bot signal
       userAgent: `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${majorVersion}.0.0.0 Safari/537.36`,
       locale: 'en-US',
       viewport: { width: 1280, height: 900 },
+      storageState: stateEnv ? JSON.parse(Buffer.from(stateEnv, 'base64').toString('utf-8')) : undefined,
     });
+    const page = await context.newPage();
 
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    const attend = page.getByRole('button', { name: /attend|参加/i }).first();
-    const attendVisible = await attend.waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+    steps.push(await snap(page, 'loaded'));
 
-    if (request.nextUrl.searchParams.get('shot')) {
-      const image = await page.screenshot({ type: 'jpeg', quality: 70 });
-      return new NextResponse(new Uint8Array(image), { headers: { 'Content-Type': 'image/jpeg' } });
+    for (const name of clicks) {
+      const target = page.getByRole('button', { name, exact: true })
+        .or(page.getByRole('link', { name, exact: true }))
+        .first();
+      await target.click({ timeout: 10_000 });
+      await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
+      steps.push(await snap(page, `after clicking "${name}"`));
     }
-
-    const html = await page.content();
-    return NextResponse.json({
-      httpStatus: response?.status() ?? null,
-      finalUrl: page.url(),
-      title: await page.title(),
-      attendButton: attendVisible ? await attend.innerText() : null,
-      botCheckSuspected: /captcha|are you a robot|verify you are human|access denied|cf-chl|datadome/i.test(html),
-      chromium: browser.version(),
-      ms: Date.now() - started,
-    });
-  } catch (error) {
-    console.error('Meetup spike error:', error);
-    return NextResponse.json(
-      { error: String(error), stack: (error as Error)?.stack, node: process.version, ms: Date.now() - started },
-      { status: 500 }
-    );
+  } catch (e) {
+    console.error('Meetup spike error:', e);
+    error = String(e);
   } finally {
     await browser?.close();
   }
+
+  const html = `<!doctype html><meta charset="utf-8"><title>Meetup spike</title>
+<body style="font-family:system-ui;background:#111;color:#eee;max-width:1000px;margin:auto;padding:16px">
+<p>${esc(url)}<br>session: ${stateEnv ? 'MEETUP_STORAGE_STATE set' : 'none (logged out)'} · ${Date.now() - started} ms · node ${process.version}</p>
+${error ? `<pre style="color:#f88;white-space:pre-wrap">${esc(error)}</pre>` : ''}
+${steps.map((s) => `<h3>${esc(s.label)}</h3><p>${esc(s.url)}</p>
+<p>buttons: ${s.buttons.map((b) => `<code>${esc(b)}</code>`).join(' · ')}</p>
+<img src="data:image/jpeg;base64,${s.shot}" style="width:100%;border:1px solid #444">`).join('')}
+</body>`;
+  return new NextResponse(html, { status: error ? 500 : 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
