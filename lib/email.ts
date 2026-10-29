@@ -1,8 +1,14 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function sendVerificationCode(email: string, code: string) {
+  // Local dev without a Resend key: print the code instead (see SETUP.md)
+  if (!process.env.RESEND_API_KEY && process.env.NODE_ENV !== 'production') {
+    console.log(`[dev] Verification code for ${email}: ${code}`);
+    return;
+  }
+
+  // Created per call: the constructor throws when the key is missing
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const { error } = await resend.emails.send({
     from: 'Daily Habits <noreply@daily.harigo.me>',
     to: email,
