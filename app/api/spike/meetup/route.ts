@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
   const started = Date.now();
   const steps: Step[] = [];
   const rejectedCookies: string[] = [];
+  const problems: string[] = [];
   let error: string | null = null;
   let browser: Browser | undefined;
   try {
@@ -67,12 +68,21 @@ export async function GET(request: NextRequest) {
       await context.addCookies([cookie]).catch(() => rejectedCookies.push(cookie.name));
     }
     const page = await context.newPage();
+    // Why hydration stalls: keep the first few failures to show on the page
+    const note = (s: string) => { if (problems.length < 30) problems.push(s.slice(0, 200)); };
+    page.on('console', (m) => { if (m.type() === 'error') note(`console: ${m.text()}`); });
+    page.on('requestfailed', (r) => note(`failed: ${r.url()} (${r.failure()?.errorText})`));
+    page.on('response', (r) => { if (r.status() >= 400) note(`${r.status()}: ${r.url()}`); });
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
-    // The RSVP bar renders after hydration, later than networkidle
-    await page.getByRole('button', { name: /attend|waitlist|rsvp|going/i }).first()
-      .waitFor({ timeout: 15_000 }).catch(() => {});
+    // The RSVP bar renders after hydration, which sometimes never happens: reload once
+    const rsvp = page.getByRole('button', { name: /attend|waitlist|rsvp|going/i }).first();
+    const rendered = () => rsvp.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    if (!(await rendered())) {
+      steps.push(await snap(page, 'no RSVP bar, reloading'));
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 15_000 });
+      if (!(await rendered()) && clicks.length) throw new Error('RSVP bar never rendered, skipped the clicks');
+    }
     steps.push(await snap(page, 'loaded'));
 
     for (const name of clicks) {
@@ -86,7 +96,7 @@ export async function GET(request: NextRequest) {
         .filter({ hasText: new RegExp(`^\\s*${words.join('\\s+')}\\s*$`) })
         .first();
       await target.click({ timeout: 10_000 });
-      await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
       steps.push(await snap(page, `after clicking "${name}"`));
     }
   } catch (e) {
@@ -100,6 +110,7 @@ export async function GET(request: NextRequest) {
 <body style="font-family:system-ui;background:#111;color:#eee;max-width:1000px;margin:auto;padding:16px">
 <p>${esc(url)}<br>session: ${cookieHeader ? `MEETUP_COOKIE set (${parseCookieHeader(cookieHeader).length} cookies${rejectedCookies.length ? `, rejected: ${esc(rejectedCookies.join(', '))}` : ''})` : 'none (logged out)'} · ${Date.now() - started} ms · node ${process.version}</p>
 ${error ? `<pre style="color:#f88;white-space:pre-wrap">${esc(error)}</pre>` : ''}
+${problems.length ? `<details><summary>${problems.length} request/console problems</summary><pre style="white-space:pre-wrap;font-size:12px">${esc(problems.join('\n'))}</pre></details>` : ''}
 ${steps.map((s) => `<h3>${esc(s.label)}</h3><p>${esc(s.url)}</p>
 <p>buttons: ${s.buttons.map((b) => `<code>${esc(b)}</code>`).join(' · ')}</p>
 <img src="data:image/jpeg;base64,${s.shot}" style="width:100%;border:1px solid #444">`).join('')}
