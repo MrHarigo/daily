@@ -90,12 +90,18 @@ export async function GET(request: NextRequest) {
       if (await page.getByText('Join Meetup+').isVisible() && name !== 'Continue with free plan') {
         throw new Error(`Refused to click "${name}" while the Meetup+ upsell is open`);
       }
-      // Match the whole visible text, any whitespace (Meetup uses &nbsp; in some labels)
-      const words = name.trim().split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-      const target = page.getByRole('button').or(page.getByRole('link'))
-        .filter({ hasText: new RegExp(`^\\s*${words.join('\\s+')}\\s*$`) })
-        .first();
-      await target.click({ timeout: 10_000 });
+      // Match the rendered text (innerText), as the buttons list shows it: hasText and
+      // role names use textContent, which glues words split across flex items
+      const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+      const candidates = page.getByRole('button').or(page.getByRole('link'));
+      const texts = await candidates.allInnerTexts();
+      let clicked = false;
+      for (let i = 0; i < texts.length && !clicked; i++) {
+        if (norm(texts[i]) !== norm(name) || !(await candidates.nth(i).isVisible())) continue;
+        await candidates.nth(i).click({ timeout: 10_000 });
+        clicked = true;
+      }
+      if (!clicked) throw new Error(`No visible button or link reads "${name}"`);
       await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
       steps.push(await snap(page, `after clicking "${name}"`));
     }
