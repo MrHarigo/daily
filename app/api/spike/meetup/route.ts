@@ -80,8 +80,10 @@ export async function GET(request: NextRequest) {
       if (await page.getByText('Join Meetup+').isVisible() && name !== 'Continue with free plan') {
         throw new Error(`Refused to click "${name}" while the Meetup+ upsell is open`);
       }
-      const target = page.getByRole('button', { name, exact: true })
-        .or(page.getByRole('link', { name, exact: true }))
+      // Match the whole visible text, any whitespace (Meetup uses &nbsp; in some labels)
+      const words = name.trim().split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const target = page.getByRole('button').or(page.getByRole('link'))
+        .filter({ hasText: new RegExp(`^\\s*${words.join('\\s+')}\\s*$`) })
         .first();
       await target.click({ timeout: 10_000 });
       await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
